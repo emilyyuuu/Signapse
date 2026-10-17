@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
+import { ZONE_IDS } from "@synapse/shared";
 import type { Store } from "../db/client.js";
 import { broadcast } from "../ws/rooms.js";
 
@@ -27,7 +28,7 @@ const utteranceSchema = z
 const painSchema = z
   .object({
     encounterId: z.string().uuid(),
-    zone: text(40),
+    zone: z.enum(ZONE_IDS),
     severity: z.number().int().min(0).max(10),
     source: z.enum(["tap", "pointing"]),
   })

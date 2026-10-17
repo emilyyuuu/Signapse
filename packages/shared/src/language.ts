@@ -4,11 +4,12 @@ import type { ClinicalSentence, GrammarFlag, Priority } from "./types";
 // offline, and the source of truth for priority and confirmation, which never
 // depend on the language model.
 
-const ZONES: Record<string, string> = {
-  HEAD: "head",
-  CHEST: "chest",
-  STOMACH: "abdominal",
-  BACK: "back",
+// Location signs: the body-map zone id plus the adjective used in sentences.
+const ZONES: Record<string, { zone: string; adj: string }> = {
+  HEAD: { zone: "head", adj: "head" },
+  CHEST: { zone: "chest", adj: "chest" },
+  STOMACH: { zone: "abdomen", adj: "abdominal" },
+  BACK: { zone: "lowerback", adj: "back" },
 };
 
 const SYMPTOMS: Record<string, string> = {
@@ -19,17 +20,24 @@ const SYMPTOMS: Record<string, string> = {
 
 // Urgent whenever the patient affirms them.
 const URGENT_COMPLAINTS = new Set(["chest pain", "difficulty breathing"]);
-// Urgent when the pain is severe (intensified), following ER triage practice for
-// severe central pain. To be reviewed by someone with clinical knowledge (task L1).
-const URGENT_WHEN_SEVERE = new Set(["head", "chest", "abdominal"]);
+// Severe pain in these body-map zones is urgent, following ER triage practice
+// for severe central pain. To be reviewed by someone with clinical knowledge (task L1).
+const CENTRAL_ZONES = new Set(["head", "headback", "chest", "abdomen"]);
+const SEVERE_PAIN = 8; // on the 0–10 scale
 
 export function complaintOf(gloss: string[]): { complaint?: string; zone?: string } {
-  const zone = gloss.map((g) => ZONES[g]).find(Boolean);
+  const loc = gloss.map((g) => ZONES[g]).find(Boolean);
+  const zone = loc?.zone;
   if (gloss.includes("BREATHE")) return { complaint: "difficulty breathing", zone: "chest" };
   if (gloss.includes("PAIN")) {
-    return { complaint: zone === "head" ? "a headache" : zone ? `${zone} pain` : "pain", zone };
+    return { complaint: zone === "head" ? "a headache" : loc ? `${loc.adj} pain` : "pain", zone };
   }
   return { complaint: gloss.map((g) => SYMPTOMS[g]).find(Boolean), zone };
+}
+
+// Body-map readings use the same triage rule as signed severe pain.
+export function painPriority(zone: string, severity: number): Priority {
+  return severity >= SEVERE_PAIN && CENTRAL_ZONES.has(zone) ? "urgent" : "routine";
 }
 
 function severe(complaint: string) {
@@ -59,7 +67,7 @@ export function assessPriority(gloss: string[], flag: GrammarFlag): Priority {
   const affirmed = flag === "statement" || flag === "intensified";
   const redFlag = complaint !== undefined && URGENT_COMPLAINTS.has(complaint) && affirmed;
   const severeCentralPain =
-    flag === "intensified" && gloss.includes("PAIN") && zone !== undefined && URGENT_WHEN_SEVERE.has(zone);
+    flag === "intensified" && gloss.includes("PAIN") && zone !== undefined && CENTRAL_ZONES.has(zone);
   return redFlag || severeCentralPain ? "urgent" : "routine";
 }
 

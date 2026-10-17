@@ -1,52 +1,35 @@
-import { useEffect, useRef, useState } from "react";
-import { DEMO_ENCOUNTER_ID, type RoomMessage, type StoredUtterance } from "@synapse/shared";
+import { useState } from "react";
+import type { StoredUtterance } from "@synapse/shared";
 import { speak, speechSupported, unlockVoice } from "../../language/speak";
+import { encounterIdFromUrl } from "../../lib/api";
+import { useRoom } from "../../lib/useRoom";
+import { BodyMap } from "../../components/bodymap/BodyMap";
+import { PainList } from "../../components/bodymap/PainList";
+import { usePainMap } from "../../components/bodymap/usePainMap";
 
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8787";
-
-// Bare clinician screen: shows each sentence from the encounter's WebSocket
-// room and reads it aloud. Styling, flags and priority come in later steps.
+// Clinician screen: each sentence from the encounter is shown and read aloud,
+// and the patient's body map updates live. Flags and priority come later.
 export function ClinicianPage() {
-  const encounterId = new URLSearchParams(location.search).get("e") ?? DEMO_ENCOUNTER_ID;
+  const encounterId = encounterIdFromUrl();
   const [lines, setLines] = useState<StoredUtterance[]>([]);
-  const [connected, setConnected] = useState(false);
   const [voiceOn, setVoiceOn] = useState(false);
-  const voiceOnRef = useRef(voiceOn);
-  voiceOnRef.current = voiceOn;
+  const { pain, apply } = usePainMap(encounterId);
 
-  useEffect(() => {
-    let ws: WebSocket;
-    let retry: ReturnType<typeof setTimeout>;
-    let closed = false;
-
-    const connect = () => {
-      ws = new WebSocket(`${API_URL.replace(/^http/, "ws")}/ws?encounter=${encounterId}`);
-      ws.onopen = () => setConnected(true);
-      ws.onclose = () => {
-        setConnected(false);
-        if (!closed) retry = setTimeout(connect, 1000);
-      };
-      ws.onmessage = (ev) => {
-        const msg = JSON.parse(ev.data) as RoomMessage;
-        if (msg.type !== "utterance") return;
-        setLines((prev) => [...prev, msg.data]);
-        if (voiceOnRef.current && msg.data.speaker === "patient") speak(msg.data.sentence);
-      };
-    };
-    connect();
-    return () => {
-      closed = true;
-      clearTimeout(retry);
-      ws.close();
-    };
-  }, [encounterId]);
+  const { connected } = useRoom(encounterId, (msg) => {
+    if (msg.type === "pain") {
+      apply(msg.data);
+      return;
+    }
+    setLines((prev) => [...prev, msg.data]);
+    if (voiceOn && msg.data.speaker === "patient") speak(msg.data.sentence);
+  });
 
   const latest = lines.at(-1);
 
   return (
-    <main style={{ fontFamily: "system-ui, sans-serif", maxWidth: 720, margin: "0 auto", padding: 16 }}>
-      <h1>Clinician</h1>
-      <p>
+    <main className="page">
+      <h1 style={{ marginTop: 0 }}>Clinician</h1>
+      <p className="muted">
         Encounter <code>{encounterId}</code> · {connected ? "live" : "connecting…"}
       </p>
 
@@ -54,6 +37,7 @@ export function ClinicianPage() {
         <p>This browser has no built-in voice. Sentences are shown as text only.</p>
       ) : (
         <button
+          className="btn"
           onClick={() => {
             if (!voiceOn) unlockVoice();
             setVoiceOn(!voiceOn);
@@ -63,22 +47,44 @@ export function ClinicianPage() {
         </button>
       )}
 
-      {latest && (
-        <section style={{ marginTop: 24 }}>
-          <p style={{ fontSize: 26, fontWeight: 600 }}>{latest.sentence}</p>
-          <button onClick={() => speak(latest.sentence)} disabled={!speechSupported}>
-            Speak again
-          </button>
+      <div className="row" style={{ marginTop: 16 }}>
+        <section className="panel" style={{ flex: "1 1 360px" }}>
+          {latest ? (
+            <>
+              <p style={{ fontSize: 26, fontWeight: 600, margin: "0 0 12px" }}>{latest.sentence}</p>
+              <button className="btn" onClick={() => speak(latest.sentence)} disabled={!speechSupported}>
+                Speak again
+              </button>
+            </>
+          ) : (
+            <p className="muted">Waiting for the patient…</p>
+          )}
+          <ol style={{ marginTop: 24 }}>
+            {lines.map((l) => (
+              <li key={l.ts + l.sentence}>
+                <small className="muted">{new Date(l.ts).toLocaleTimeString()}</small> {l.sentence}
+              </li>
+            ))}
+          </ol>
         </section>
-      )}
 
-      <ol style={{ marginTop: 24 }}>
-        {lines.map((l) => (
-          <li key={l.ts + l.sentence}>
-            <small>{new Date(l.ts).toLocaleTimeString()}</small> {l.sentence}
-          </li>
-        ))}
-      </ol>
+        <section className="panel" style={{ flex: "1 1 360px" }} aria-label="Patient body map">
+          <h2 style={{ margin: "0 0 12px", fontSize: 18 }}>Pain map</h2>
+          <div className="row" style={{ gap: 8 }}>
+            {(["front", "back"] as const).map((v) => (
+              <figure key={v} style={{ margin: 0, flex: "1 1 120px", maxWidth: 170 }}>
+                <BodyMap view={v} pain={pain} />
+                <figcaption className="muted" style={{ textAlign: "center" }}>
+                  {v === "front" ? "Front" : "Back"}
+                </figcaption>
+              </figure>
+            ))}
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <PainList pain={pain} />
+          </div>
+        </section>
+      </div>
     </main>
   );
 }
