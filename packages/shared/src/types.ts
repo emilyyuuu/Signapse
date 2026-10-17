@@ -74,6 +74,7 @@ export interface ClinicalSentence {
 // POST /translate response: which engine wrote the sentence.
 export interface TranslateResult extends ClinicalSentence {
   source: "gemini" | "template";
+  face: string; // plain-words facial summary, e.g. "head shook 3 times → denial"
 }
 
 // POST /clauses: what sign recognition sends when the patient pauses.
@@ -90,6 +91,7 @@ export interface ClauseResult {
   priority: Priority;
   needsConfirm: boolean;
   source: TranslateResult["source"];
+  face: string;
 }
 
 export interface Encounter {

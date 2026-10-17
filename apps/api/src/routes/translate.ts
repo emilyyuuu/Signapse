@@ -8,7 +8,12 @@ import { broadcast } from "../ws/rooms.js";
 import { confidenceSchema, glossSchema, grammarFlagSchema, nmmSchema } from "./schemas.js";
 
 const translateSchema = z
-  .object({ gloss: glossSchema, grammarFlag: grammarFlagSchema, confidence: confidenceSchema.optional() })
+  .object({
+    gloss: glossSchema,
+    grammarFlag: grammarFlagSchema,
+    confidence: confidenceSchema.optional(),
+    nmm: nmmSchema.optional(),
+  })
   .strict();
 
 const clauseSchema = z
@@ -28,8 +33,8 @@ export function translateRoutes(store: Store, gemini: GeminiConfig | null) {
   r.post("/translate", async (c) => {
     const parsed = translateSchema.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400);
-    const { gloss, grammarFlag, confidence } = parsed.data;
-    return c.json(await translateClause(gloss, grammarFlag, confidence, gemini));
+    const { gloss, grammarFlag, confidence, nmm } = parsed.data;
+    return c.json(await translateClause(gloss, grammarFlag, confidence, nmm, gemini));
   });
 
   // What sign recognition calls when the patient pauses: signs + facial grammar
@@ -40,7 +45,7 @@ export function translateRoutes(store: Store, gemini: GeminiConfig | null) {
     const { encounterId, gloss, grammarFlag, confidence, nmm } = parsed.data;
     if (!(await store.getEncounter(encounterId))) return c.json({ error: "unknown encounter" }, 404);
 
-    const t = await translateClause(gloss, grammarFlag, confidence, gemini);
+    const t = await translateClause(gloss, grammarFlag, confidence, nmm, gemini);
     const utterance = await store.insertUtterance({
       encounterId,
       speaker: "patient",
@@ -58,6 +63,7 @@ export function translateRoutes(store: Store, gemini: GeminiConfig | null) {
       priority: t.priority,
       needsConfirm: t.needsConfirm,
       source: t.source,
+      face: t.face,
     };
     return c.json(result, 201);
   });
