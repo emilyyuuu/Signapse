@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "synapse-vision"
+version = "0.1.0"
+description = "On-device vision for Synapse: facial grammar and (later) sign recognition."
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "mediapipe>=0.10.14",
+    "opencv-python>=4.9",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+include = ["synapse_vision*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
