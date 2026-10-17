@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "facial-grammar"
+version = "0.1.0"
+description = "Synapse facial grammar: brows, squint and head movement to a grammar flag, on device."
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "mediapipe>=0.10.14",
+    "opencv-python>=4.9",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+# This folder is the package itself: apps/facial_grammar/ -> import facial_grammar.
+[tool.setuptools]
+package-dir = { "facial_grammar" = "." }
+packages = ["facial_grammar"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -11,7 +11,8 @@ export interface SignEvent {
   endMs: number;
 }
 
-// One face/head sample inside a clause window. Stays on device.
+// One face/head sample inside a clause window. Stays on device: produced and consumed inside
+// apps/facial_grammar (Python equivalent: datatypes.py Frame). Only the flag and nmm scores cross over.
 export interface FaceFrame {
   t: number;
   browInnerUp: number;
