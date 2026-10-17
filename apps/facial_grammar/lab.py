@@ -21,6 +21,7 @@ from . import (
     CalibrationError,
     Calibrator,
     ClauseRecorder,
+    DEFAULT_THRESHOLDS,
     Frame,
     GrammarFlag,
     GrammarResult,
@@ -79,10 +80,11 @@ def run(camera: int) -> None:
         if frame is None:
             _text(img, "No face", 24, RED)
         elif baseline is not None:
-            _bar(img, "brow", frame.brow - baseline.brow, 14, 0.25)
-            _bar(img, "browDown", frame.brow_down - baseline.brow_down, 32, 0.20)
-            _bar(img, "squint", frame.squint - baseline.squint, 50, 0.25)
-            _bar(img, "yaw", frame.yaw - baseline.yaw, 68, 6.0, full=30.0)
+            th = DEFAULT_THRESHOLDS
+            _bar(img, "brow", frame.brow - baseline.brow, 14, th.brow_up)
+            _bar(img, "browDown", frame.brow_down - baseline.brow_down, 32, th.brow_down)
+            _bar(img, "squint", frame.squint - baseline.squint, 50, th.squint)
+            _bar(img, "yaw", frame.yaw - baseline.yaw, 68, th.yaw_deadband_deg, full=30.0)
             _bar(img, "pitch", frame.pitch - baseline.pitch, 86, None, full=30.0)
         else:
             _text(img, f"yaw {frame.yaw:+.1f}  pitch {frame.pitch:+.1f}", 24)

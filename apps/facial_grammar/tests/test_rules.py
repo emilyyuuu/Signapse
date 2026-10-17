@@ -47,6 +47,18 @@ def test_squint_is_intensified():
     assert grammar_flag(window(squint=lambda t: 0.4), BASE).flag is GrammarFlag.INTENSIFIED
 
 
+def test_short_furrow_in_long_clause_is_intensified():
+    # 600 ms furrow in a 4 s clause: the mean is low, but the hold is long enough.
+    r = grammar_flag(window(ms=4000, brow_down=lambda t: 0.1 if 1000 <= t < 1600 else 0.0), BASE)
+    assert r.down < 0.05
+    assert r.flag is GrammarFlag.INTENSIFIED
+
+
+def test_brief_furrow_flash_is_not_intensified():
+    r = grammar_flag(window(brow_down=lambda t: 0.4 if t < 150 else 0.0), BASE)
+    assert r.flag is GrammarFlag.STATEMENT
+
+
 def test_negation_beats_question():
     r = grammar_flag(window(brow=lambda t: 0.5, yaw=shake()), BASE)
     assert r.flag is GrammarFlag.NEGATION
