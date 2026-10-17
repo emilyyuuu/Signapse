@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from apps.vision.synapse_vision.grammar import extract_frame
+from facial_grammar import extract_frame
 
 
 def fake_result(scores, yaw_deg=0.0):

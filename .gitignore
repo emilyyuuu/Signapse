@@ -14,4 +14,4 @@ dist/
 __pycache__/
 *.egg-info/
 .pytest_cache/
-vision/models/
+apps/facial_grammar/models/

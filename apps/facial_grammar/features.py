@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from .types import Frame
+from .datatypes import Frame
 
 
 def _scores(categories: Any) -> dict[str, float]:

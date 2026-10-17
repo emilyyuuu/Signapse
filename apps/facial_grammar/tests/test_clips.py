@@ -1,19 +1,19 @@
-"""Accuracy of the grammar rules on clips recorded with the lab (tests/clips/*.json)."""
+"""Accuracy of the grammar rules on clips recorded with the lab (data/grammar/clips/*.json)."""
 
 from collections import Counter
-from pathlib import Path
 
 import pytest
 
-from apps.vision.synapse_vision.grammar import grammar_flag
-from apps.vision.synapse_vision.grammar.clips import load_clip
+from facial_grammar import grammar_flag
+from facial_grammar.clips import load_clip
+from facial_grammar.paths import GRAMMAR_CLIPS_DIR
 
-CLIPS = sorted((Path(__file__).parent / "clips").glob("*.json"))
+CLIPS = sorted(GRAMMAR_CLIPS_DIR.glob("*.json"))
 TARGET = 0.90
 MIN_CLIPS_TO_ENFORCE = 20
 
 
-@pytest.mark.skipif(not CLIPS, reason="no recorded clips in tests/clips/")
+@pytest.mark.skipif(not CLIPS, reason="no recorded clips in data/grammar/clips/")
 def test_clip_accuracy():
     total, correct = Counter(), Counter()
     misses = []

@@ -57,3 +57,13 @@ class GrammarResult:
     sq: float
     flips: int
     brow_hold_ms: float
+
+    def to_nmm(self) -> dict[str, float | str]:
+        """Marker scores for UtteranceEvent.nmm (packages/shared/src/types.ts). Text and numbers only."""
+        return {
+            "browUp": round(self.up, 3),
+            "browDown": round(self.down, 3),
+            "eyeSquint": round(self.sq, 3),
+            "headYawFlips": self.flips,
+            "browHoldMs": round(self.brow_hold_ms),
+        }

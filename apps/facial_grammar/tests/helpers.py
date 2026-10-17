@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 from collections.abc import Callable
 
-from apps.vision.synapse_vision.grammar import Baseline, Frame
+from facial_grammar import Baseline, Frame
 
 BASE = Baseline(brow=0.10, brow_down=0.05, squint=0.10, yaw=2.0, pitch=-3.0)
 
