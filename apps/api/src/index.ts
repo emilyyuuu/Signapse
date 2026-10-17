@@ -22,8 +22,8 @@ const store = createStore(process.env.DATABASE_URL || undefined);
 const gemini = process.env.GEMINI_API_KEY
   ? {
       apiKey: process.env.GEMINI_API_KEY,
-      model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
-      timeoutMs: Number(process.env.GEMINI_TIMEOUT_MS || 2500),
+      model: process.env.GEMINI_MODEL || "gemini-3.5-flash-lite",
+      timeoutMs: Number(process.env.GEMINI_TIMEOUT_MS || 3000),
     }
   : null;
 

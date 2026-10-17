@@ -17,7 +17,11 @@ const SYMPTOMS: Record<string, string> = {
   FEVER: "a fever",
 };
 
+// Urgent whenever the patient affirms them.
 const URGENT_COMPLAINTS = new Set(["chest pain", "difficulty breathing"]);
+// Urgent when the pain is severe (intensified), following ER triage practice for
+// severe central pain. To be reviewed by someone with clinical knowledge (task L1).
+const URGENT_WHEN_SEVERE = new Set(["head", "chest", "abdominal"]);
 
 export function complaintOf(gloss: string[]): { complaint?: string; zone?: string } {
   const zone = gloss.map((g) => ZONES[g]).find(Boolean);
@@ -51,9 +55,12 @@ export function templateSentence(gloss: string[], flag: GrammarFlag): string {
 }
 
 export function assessPriority(gloss: string[], flag: GrammarFlag): Priority {
-  const { complaint } = complaintOf(gloss);
+  const { complaint, zone } = complaintOf(gloss);
   const affirmed = flag === "statement" || flag === "intensified";
-  return complaint && URGENT_COMPLAINTS.has(complaint) && affirmed ? "urgent" : "routine";
+  const redFlag = complaint !== undefined && URGENT_COMPLAINTS.has(complaint) && affirmed;
+  const severeCentralPain =
+    flag === "intensified" && gloss.includes("PAIN") && zone !== undefined && URGENT_WHEN_SEVERE.has(zone);
+  return redFlag || severeCentralPain ? "urgent" : "routine";
 }
 
 export function buildClinicalSentence(
