@@ -52,14 +52,21 @@ def grammar_flag(
     sq = fmean(f.squint - baseline.squint for f in window)
     flips = sign_changes([f.yaw - baseline.yaw for f in window], th.yaw_deadband_deg)
     hold = _longest_hold_ms(window, [d > th.brow_up for d in up_deltas])
+    # A furrow or squint often lasts only part of the clause, so the mean dilutes it: use a hold.
+    furrow = max(
+        _longest_hold_ms(window, [f.brow_down - baseline.brow_down > th.brow_down for f in window]),
+        _longest_hold_ms(window, [f.squint - baseline.squint > th.squint for f in window]),
+    )
 
     if flips >= th.min_yaw_flips:
         flag = GrammarFlag.NEGATION
     elif up > th.brow_up and hold >= th.brow_hold_ms:
         flag = GrammarFlag.QUESTION
-    elif down > th.brow_down or sq > th.squint:
+    elif furrow >= th.furrow_hold_ms:
         flag = GrammarFlag.INTENSIFIED
     else:
         flag = GrammarFlag.STATEMENT
 
-    return GrammarResult(flag=flag, up=up, down=down, sq=sq, flips=flips, brow_hold_ms=hold)
+    return GrammarResult(
+        flag=flag, up=up, down=down, sq=sq, flips=flips, brow_hold_ms=hold, furrow_hold_ms=furrow
+    )

@@ -38,10 +38,11 @@ class Baseline:
 class Thresholds:
     """Starting values from the plan. Tune them on recorded clips, not by guessing."""
 
-    brow_up: float = 0.25
+    brow_up: float = 0.15
     brow_hold_ms: float = 300.0
-    brow_down: float = 0.20
-    squint: float = 0.25
+    brow_down: float = 0.05
+    squint: float = 0.30
+    furrow_hold_ms: float = 240.0
     yaw_deadband_deg: float = 6.0
     min_yaw_flips: int = 2
 
@@ -57,6 +58,7 @@ class GrammarResult:
     sq: float
     flips: int
     brow_hold_ms: float
+    furrow_hold_ms: float = 0.0
 
     def to_nmm(self) -> dict[str, float | str]:
         """Marker scores for UtteranceEvent.nmm (packages/shared/src/types.ts). Text and numbers only."""
@@ -66,4 +68,5 @@ class GrammarResult:
             "eyeSquint": round(self.sq, 3),
             "headYawFlips": self.flips,
             "browHoldMs": round(self.brow_hold_ms),
+            "furrowHoldMs": round(self.furrow_hold_ms),
         }
