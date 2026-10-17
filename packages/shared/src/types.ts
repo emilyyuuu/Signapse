@@ -52,3 +52,70 @@ export interface PainReading {
   severity: number; // 0–10
   source: "tap" | "pointing";
 }
+
+// Anything that produces signs: wizard mode now, camera recognition later.
+// Both feed the same pipeline, so the demo path never changes.
+export interface SignSource {
+  onSign(cb: (sign: SignEvent) => void): () => void;
+  onClause(cb: (clause: ClauseWindow) => void): () => void;
+}
+
+export type Priority = "routine" | "urgent";
+
+// Output of the clinical sentence processor for one clause.
+export interface ClinicalSentence {
+  sentence: string;
+  complaint?: string;
+  zone?: string;
+  priority: Priority;
+  needsConfirm: boolean; // meaning depends on a facial marker or low confidence
+}
+
+// POST /translate response: which engine wrote the sentence.
+export interface TranslateResult extends ClinicalSentence {
+  source: "gemini" | "template";
+}
+
+// POST /clauses: what sign recognition sends when the patient pauses.
+export interface ClauseRequest {
+  encounterId: string;
+  gloss: string[]; // sign labels, e.g. ["PAIN", "CHEST"]
+  grammarFlag: GrammarFlag; // from the facial grammar engine
+  confidence?: number; // 0–1, lowest sign confidence in the clause
+  nmm?: Record<string, number | string>; // facial-marker summary, e.g. {"browRaise": 0.82}
+}
+
+export interface ClauseResult {
+  utterance: StoredUtterance;
+  priority: Priority;
+  needsConfirm: boolean;
+  source: TranslateResult["source"];
+}
+
+export interface Encounter {
+  encounterId: string;
+  patientRef: string;
+  clinicianId: string;
+  signLanguage: string;
+  startedAt: string;
+  endedAt?: string;
+}
+
+// Rows as stored and returned by the API.
+export interface StoredUtterance extends UtteranceEvent {
+  ts: string;
+  verifiedBy?: string;
+  verifiedAt?: string;
+}
+
+export interface StoredPainReading extends PainReading {
+  ts: string;
+}
+
+// Messages pushed to every browser in an encounter's WebSocket room.
+export type RoomMessage =
+  | { type: "utterance"; data: StoredUtterance }
+  | { type: "pain"; data: StoredPainReading };
+
+// Seeded in db/seed/encounters.sql and in the API's in-memory store.
+export const DEMO_ENCOUNTER_ID = "00000000-0000-4000-8000-000000000001";
