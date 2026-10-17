@@ -1,10 +1,10 @@
 """Facial grammar lab: calibrate, mark clauses by hand, see the flag, save labelled clips.
 
-Run with ``python -m synapse_vision.lab``. Keys:
+Run with ``python -m facial_grammar.lab``. Keys:
   c       calibrate (hold a neutral face for 3 s)
   space   start / end a clause
   1-4     label the last clause: 1 statement, 2 question, 3 negation, 4 intensified
-  s       save the labelled clause to tests/clips/ (features only, never video)
+  s       save the labelled clause to data/grammar/clips/ (features only, never video)
   q / esc quit
 """
 
@@ -12,12 +12,11 @@ from __future__ import annotations
 
 import argparse
 import time
-from pathlib import Path
 
 import cv2
 
 from .capture import frames
-from .grammar import (
+from . import (
     Baseline,
     CalibrationError,
     Calibrator,
@@ -27,9 +26,8 @@ from .grammar import (
     GrammarResult,
     grammar_flag,
 )
-from .grammar.clips import save_clip
-
-CLIPS_DIR = Path(__file__).resolve().parent.parent / "tests" / "clips"
+from .clips import save_clip
+from .paths import GRAMMAR_CLIPS_DIR as CLIPS_DIR
 LABEL_KEYS = {
     ord("1"): GrammarFlag.STATEMENT,
     ord("2"): GrammarFlag.QUESTION,

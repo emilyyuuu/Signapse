@@ -6,7 +6,7 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
-from .types import Baseline, Frame, GrammarFlag
+from .datatypes import Baseline, Frame, GrammarFlag
 
 
 def save_clip(path: Path, label: GrammarFlag, baseline: Baseline, frames: list[Frame]) -> None:

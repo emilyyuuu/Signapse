@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from statistics import fmean
 
-from .types import DEFAULT_THRESHOLDS, Baseline, Frame, GrammarFlag, GrammarResult, Thresholds
+from .datatypes import DEFAULT_THRESHOLDS, Baseline, Frame, GrammarFlag, GrammarResult, Thresholds
 
 
 def sign_changes(values: Sequence[float], deadband: float) -> int:

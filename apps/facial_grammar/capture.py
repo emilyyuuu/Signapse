@@ -14,15 +14,14 @@ import mediapipe as mp
 from mediapipe.tasks.python import BaseOptions
 from mediapipe.tasks.python.vision import FaceLandmarker, FaceLandmarkerOptions, RunningMode
 
-from .grammar import Frame, extract_frame
-
-MODELS_DIR = Path(__file__).resolve().parent.parent / "models"
-FACE_MODEL = MODELS_DIR / "face_landmarker.task"
+from .datatypes import Frame
+from .features import extract_frame
+from .paths import FACE_MODEL
 
 
 def open_face_landmarker(model_path: Path = FACE_MODEL) -> FaceLandmarker:
     if not model_path.exists():
-        raise FileNotFoundError(f"{model_path} not found. Run vision/scripts/fetch_models.sh first.")
+        raise FileNotFoundError(f"{model_path} not found. Run apps/facial_grammar/scripts/fetch_models.sh first.")
     options = FaceLandmarkerOptions(
         base_options=BaseOptions(model_asset_path=str(model_path)),
         running_mode=RunningMode.VIDEO,

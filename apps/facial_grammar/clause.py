@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .types import Frame
+from .datatypes import Frame
 
 
 class ClauseRecorder:

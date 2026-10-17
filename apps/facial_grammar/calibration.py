@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from statistics import fmean
 
-from .types import Baseline, Frame
+from .datatypes import Baseline, Frame
 
 
 class CalibrationError(Exception):

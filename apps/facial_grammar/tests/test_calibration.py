@@ -1,7 +1,7 @@
 import pytest
-from apps.vision.tests.helpers import BASE, window
+from helpers import BASE, window
 
-from apps.vision.synapse_vision.grammar import CalibrationError, Calibrator
+from facial_grammar import CalibrationError, Calibrator
 
 
 def run(frames, missing_every=0):

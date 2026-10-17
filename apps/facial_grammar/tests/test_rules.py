@@ -1,6 +1,6 @@
-from apps.vision.tests.helpers import BASE, shake, window
+from helpers import BASE, shake, window
 
-from apps.vision.synapse_vision.grammar import GrammarFlag, grammar_flag, sign_changes
+from facial_grammar import GrammarFlag, grammar_flag, sign_changes
 
 
 def test_neutral_is_statement():
