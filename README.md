@@ -10,8 +10,8 @@ This is a hackathon project (about 36 hours). The full plan, a clickable prototy
 
 ## How it works
 
-1. **Sign recognition (on device).** MediaPipe Tasks Vision `HandLandmarker` and `FaceLandmarker` run in the browser. Hand landmarks are normalized (subtract the wrist position, divide by hand size) and split into segments by hand speed. Each segment is matched against recorded templates with DTW + k-NN. The vocabulary is about 30 isolated clinical ASL signs, about 20 takes each, stored as landmark JSON only, never video.
-2. **Facial grammar engine (on device).** This is the core feature. A neutral-face calibration stores a baseline for each patient. Over each clause window, `browInnerUp`/`browOuterUp`/`browDown`/`eyeSquint` blendshapes and head yaw/pitch are mapped to one of four flags: `statement`, `question` (brows raised for more than ~300 ms), `negation` (2 or more yaw reversals) or `intensified` (furrow or squint). The rules are plain TypeScript, not a model.
+1. **Sign recognition (on device).** MediaPipe `HandLandmarker` and `FaceLandmarker` run in a local Python process on the patient laptop (`apps/facial_grammar`). Hand landmarks are normalized (subtract the wrist position, divide by hand size) and split into segments by hand speed. Each segment is matched against recorded templates with DTW + k-NN. The vocabulary is about 30 isolated clinical ASL signs, about 20 takes each, stored as landmark JSON only, never video.
+2. **Facial grammar engine (on device).** This is the core feature. A neutral-face calibration stores a baseline for each patient. Over each clause window, `browInnerUp`/`browOuterUp`/`browDown`/`eyeSquint` blendshapes and head yaw/pitch are mapped to one of four flags: `statement`, `question` (brows raised for more than ~300 ms), `negation` (2 or more yaw reversals) or `intensified` (furrow or squint). The rules are plain Python (`apps/facial_grammar/`), not a model.
 3. **Clinical sentence processor.** A phrase table keyed by complaint fills a sentence template for each flag. An optional Claude Haiku rewrite works on redacted text only and falls back to the template after 1 s. Output is spoken with `speechSynthesis` and saved as structured fields. Any meaning that depends on a facial marker is flagged for the clinician to confirm.
 4. **Clinician reply.** Typed replies (in-browser Whisper dictation is a stretch goal) are rewritten in plain language and matched to icons. A reply ending in `?` shows large YES/NO buttons, and the patient's tap is logged.
 5. **Body map.** An SVG front/back view with 21 zones and severity 0–10. Each change becomes a `pain_readings` row.
@@ -19,15 +19,24 @@ This is a hackathon project (about 36 hours). The full plan, a clickable prototy
 
 ## Stack
 
-React + Vite + TypeScript (or Next.js), with routes for **patient**, **clinician** and **review**. A Node API (Hono or Fastify, `pg`, one WebSocket room per encounter) validates and relays events. Tiger Cloud is set up with the Tiger CLI or Tiger MCP. The frontend is deployed on Vercel/Netlify and the API on Render/Fly (HTTPS is required for the camera).
+**Vision** (sign recognition + facial grammar) is Python with MediaPipe and OpenCV, in one camera loop on the patient laptop. Only text events leave that process.
+
+**Web:** React + Vite + TypeScript (or Next.js), with routes for **patient**, **clinician** and **review**. A Node API (Hono or Fastify, `pg`, one WebSocket room per encounter) validates and relays events. Tiger Cloud is set up with the Tiger CLI or Tiger MCP. The frontend is deployed on Vercel/Netlify and the API on Render/Fly (HTTPS is required for the camera).
 
 ## Repo layout
 
 ```
+apps/facial_grammar/  Python package `facial_grammar`, runs on the patient laptop; video never leaves it
+  capture.py          webcam + MediaPipe Face Landmarker loop
+  features.py         blendshapes + head pose -> Frame
+  calibration.py      3 s neutral-face baseline per patient
+  clause.py, rules.py clause window -> statement / question / negation / intensified
+  datatypes.py        Frame, Baseline, Thresholds (tune here), GrammarResult
+  clips.py, lab.py    live lab: calibrate, mark clauses, label and save clips
+  scripts/            fetch_models.sh downloads models/ (gitignored)
+  tests/              pytest, incl. accuracy on data/grammar/clips
 apps/web/             React + Vite frontend
   src/routes/         patient, clinician, review screens
-  src/recognition/    MediaPipe landmarks, normalization, DTW + k-NN
-  src/grammar/        facial grammar rules (calibration, flags)
   src/language/       phrase table, sentence templates, plain-language replies
   src/components/     shared UI (bodymap/, ...)
   src/wizard/         wizard-mode operator panel
@@ -39,8 +48,20 @@ apps/api/             Node API
 packages/shared/      shared TypeScript contracts (types.ts)
 db/schema.sql         Tiger Data schema; db/seed/ for sample encounters
 data/signs/           recorded sign templates (landmark JSON only, never video)
+data/grammar/clips/   labelled facial grammar clips (feature JSON only)
 tools/recorder/       recorder tool for labelled landmark takes
 ```
+
+## Running facial grammar
+
+```
+cd apps/facial_grammar && python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
+scripts/fetch_models.sh
+.venv/bin/pytest -s                      # unit tests + per-flag accuracy on data/grammar/clips
+.venv/bin/python -m facial_grammar.lab   # c calibrate, space clause, 1-4 label, s save, q quit
+```
+
+Grammar thresholds are in `apps/facial_grammar/datatypes.py`. Tune them against recorded clips.
 
 ## Shared contracts (agree these first)
 
@@ -87,7 +108,7 @@ For body-map pointing, call `report(zone, severity, "pointing")` from `usePainMa
 
 ## Non-negotiables
 
-- **Privacy:** camera frames and landmarks are processed in the browser and discarded. The API rejects anything that isn't text or numbers. Patients are tokens, not names. The UI shows a live "video frames sent: 0" counter. Chrome's `SpeechRecognition` sends audio to the cloud, so don't use it outside a clearly labelled stand-in.
+- **Privacy:** camera frames and landmarks are processed in the local vision process and discarded. The API rejects anything that isn't text or numbers. Patients are tokens, not names. The UI shows a live "video frames sent: 0" counter. Chrome's `SpeechRecognition` sends audio to the cloud, so don't use it outside a clearly labelled stand-in.
 - **Safety:** a wrong meaning is a clinical risk, so lines that depend on a marker need clinician confirmation before charting. Synapse does not replace qualified interpreters and is not HIPAA/PHIPA compliant.
 - **Demo resilience:** wizard mode (an operator triggers signs through the same pipeline) must work end to end before hour 8. Event writes are queued and must never block the UI.
 
