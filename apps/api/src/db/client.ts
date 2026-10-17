@@ -4,6 +4,7 @@ import {
   DEMO_ENCOUNTER_ID,
   type Encounter,
   type PainReading,
+  type PainTrendPoint,
   type StoredPainReading,
   type StoredUtterance,
   type UtteranceEvent,
@@ -17,6 +18,10 @@ export interface Store {
   listPain(encounterId: string): Promise<StoredPainReading[]>;
   insertUtterance(u: UtteranceEvent): Promise<StoredUtterance>;
   insertPain(p: PainReading): Promise<StoredPainReading>;
+  // Records which clinician confirmed a line's meaning, and when.
+  verifyUtterance(id: string, clinicianId: string): Promise<StoredUtterance | null>;
+  // Highest pain per zone per minute (Tiger: continuous aggregate pain_by_minute).
+  painTrend(encounterId: string): Promise<PainTrendPoint[]>;
 }
 
 // Tiger Cloud when DATABASE_URL is set, otherwise an in-memory store so the
@@ -50,6 +55,7 @@ function tigerStore(connectionString: string): Store {
   });
 
   const toUtterance = (r: any): StoredUtterance => ({
+    id: r.id,
     ts: r.ts.toISOString(),
     encounterId: r.encounter_id,
     speaker: r.speaker,
@@ -127,6 +133,22 @@ function tigerStore(connectionString: string): Store {
       );
       return toPain(rows[0]);
     },
+    async verifyUtterance(id, clinicianId) {
+      const { rows } = await pool.query(
+        `UPDATE utterances SET verified_by = $2, verified_at = now()
+         WHERE id = $1 RETURNING *`,
+        [id, clinicianId],
+      );
+      return rows[0] ? toUtterance(rows[0]) : null;
+    },
+    async painTrend(encounterId) {
+      const { rows } = await pool.query(
+        `SELECT bucket, zone, peak FROM pain_by_minute
+         WHERE encounter_id = $1 ORDER BY bucket, zone`,
+        [encounterId],
+      );
+      return rows.map((r) => ({ bucket: r.bucket.toISOString(), zone: r.zone, peak: Number(r.peak) }));
+    },
   };
 }
 
@@ -169,7 +191,7 @@ function memoryStore(): Store {
       return pain.filter((p) => p.encounterId === encounterId);
     },
     async insertUtterance(u) {
-      const row = { ...u, ts: new Date().toISOString() };
+      const row = { ...u, id: crypto.randomUUID(), ts: new Date().toISOString() };
       utterances.push(row);
       return row;
     },
@@ -177,6 +199,23 @@ function memoryStore(): Store {
       const row = { ...p, ts: new Date().toISOString() };
       pain.push(row);
       return row;
+    },
+    async verifyUtterance(id, clinicianId) {
+      const u = utterances.find((x) => x.id === id);
+      if (!u) return null;
+      Object.assign(u, { verifiedBy: clinicianId, verifiedAt: new Date().toISOString() });
+      return u;
+    },
+    async painTrend(encounterId) {
+      // Same shape as the Tiger continuous aggregate: max severity per zone per minute.
+      const peaks = new Map<string, PainTrendPoint>();
+      for (const p of pain.filter((x) => x.encounterId === encounterId)) {
+        const bucket = new Date(Math.floor(Date.parse(p.ts) / 60_000) * 60_000).toISOString();
+        const key = `${bucket}|${p.zone}`;
+        const cur = peaks.get(key);
+        if (!cur || p.severity > cur.peak) peaks.set(key, { bucket, zone: p.zone, peak: p.severity });
+      }
+      return [...peaks.values()].sort((a, b) => a.bucket.localeCompare(b.bucket) || a.zone.localeCompare(b.zone));
     },
   };
 }

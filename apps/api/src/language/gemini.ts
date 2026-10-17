@@ -40,14 +40,44 @@ export async function geminiSentence(
   face: FaceCues,
   cfg: GeminiConfig,
 ): Promise<string | null> {
+  const prompt = `Gloss: ${gloss.join(" ")}\nGrammar flag: ${flag}\nFacial cues: ${describeCues(face)}`;
+  const sentence = await geminiText(INSTRUCTIONS, prompt, 200, cfg.timeoutMs, cfg);
+  return sentence && sentence.length <= 300 ? sentence : null;
+}
+
+const SUMMARY_INSTRUCTIONS = `You write a short summary at the top of a clinical chart note for a Deaf patient's emergency visit.
+The input is the visit log: sentences translated from the patient's sign language, the clinician's replies, the patient's yes/no answers, and pain-map readings.
+Rules:
+- 2 to 3 sentences, plain clinical English.
+- Use only facts in the log. Never add diagnoses, causes, vital signs, history or advice.
+- Include what the patient denied, not only what they reported.
+- Lines marked UNCONFIRMED must be described as unconfirmed.
+- No names; refer to "the patient".`;
+
+// Short summary paragraph for the chart note. A visit log is longer than one
+// clause and nobody is waiting on it live, so it gets a longer timeout.
+export async function geminiNoteSummary(visitLog: string, cfg: GeminiConfig): Promise<string | null> {
+  const summary = await geminiText(SUMMARY_INSTRUCTIONS, visitLog, 400, cfg.timeoutMs * 3, cfg);
+  return summary && summary.length <= 1200 ? summary : null;
+}
+
+// One Gemini call returning {"text": "..."}. Returns null on any failure or
+// timeout so callers fall back to their rule-based output.
+async function geminiText(
+  instructions: string,
+  prompt: string,
+  maxOutputTokens: number,
+  timeoutMs: number,
+  cfg: GeminiConfig,
+): Promise<string | null> {
   const generationConfig: Record<string, unknown> = {
     temperature: 0.2,
-    maxOutputTokens: 200,
+    maxOutputTokens,
     responseMimeType: "application/json",
     responseSchema: {
       type: "OBJECT",
-      properties: { sentence: { type: "STRING" } },
-      required: ["sentence"],
+      properties: { text: { type: "STRING" } },
+      required: ["text"],
     },
   };
   // 2.5 models think by default; turning it off keeps latency low.
@@ -59,19 +89,10 @@ export async function geminiSentence(
       {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-goog-api-key": cfg.apiKey },
-        signal: AbortSignal.timeout(cfg.timeoutMs),
+        signal: AbortSignal.timeout(timeoutMs),
         body: JSON.stringify({
-          systemInstruction: { parts: [{ text: INSTRUCTIONS }] },
-          contents: [
-            {
-              role: "user",
-              parts: [
-                {
-                  text: `Gloss: ${gloss.join(" ")}\nGrammar flag: ${flag}\nFacial cues: ${describeCues(face)}`,
-                },
-              ],
-            },
-          ],
+          systemInstruction: { parts: [{ text: instructions }] },
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
           generationConfig,
         }),
       },
@@ -81,12 +102,11 @@ export async function geminiSentence(
       return null;
     }
     const data: any = await res.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    const sentence = typeof text === "string" ? JSON.parse(text).sentence : undefined;
-    if (typeof sentence !== "string" || !sentence.trim() || sentence.length > 300) return null;
-    return sentence.trim();
+    const raw = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    const text = typeof raw === "string" ? JSON.parse(raw).text : undefined;
+    return typeof text === "string" && text.trim() ? text.trim() : null;
   } catch (err) {
-    console.warn(`Gemini failed, using template: ${(err as Error).message}`);
+    console.warn(`Gemini failed, using fallback: ${(err as Error).message}`);
     return null;
   }
 }
