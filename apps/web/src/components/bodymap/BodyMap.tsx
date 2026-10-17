@@ -1,12 +1,14 @@
 import type { KeyboardEvent } from "react";
-import { BODY_VIEWS, type BodyView } from "@synapse/shared";
+import { BODY_VIEWS, VIEW_BOXES, zoneCovers, type BodyView } from "@synapse/shared";
 
 interface Props {
   view: BodyView;
   pain: Record<string, number>; // zone id -> severity 0–10
   selected?: string;
-  // Zone the patient's fingertip is over, for the camera pointing feature.
+  // Zone the patient is pointing at or touching, from the camera.
   highlighted?: string;
+  // The highlight is an unconfirmed suggestion (a touch): drawn dashed.
+  tentative?: boolean;
   // Omit for a read-only map (clinician screen).
   onPick?: (zoneId: string) => void;
 }
@@ -17,18 +19,30 @@ export function painFill(severity: number) {
     : "var(--surface-2)";
 }
 
-export function BodyMap({ view, pain, selected, highlighted, onPick }: Props) {
+const LABELS: Record<BodyView, string> = { front: "front view", back: "back view", face: "face" };
+
+export function BodyMap({ view, pain, selected, highlighted, tentative, onPick }: Props) {
+  const box = VIEW_BOXES[view];
   return (
-    <svg className="bodymap" viewBox="0 0 200 414" role="group" aria-label={`Body map, ${view} view`}>
+    <svg className="bodymap" viewBox={`0 0 ${box.w} ${box.h}`} role="group" aria-label={`Body map, ${LABELS[view]}`}>
+      {view === "face" && <ellipse className="face-outline" cx={60} cy={70} rx={46} ry={58} />}
       {BODY_VIEWS[view].map((z) => {
-        const severity = pain[z.id] ?? 0;
+        // A reading on a group (chest) or on a part this view doesn't draw (nose on
+        // the body view) shows on every zone it covers.
+        const severity = Math.max(
+          0,
+          ...Object.entries(pain)
+            .filter(([zone]) => zoneCovers(z.id, zone, view))
+            .map(([, s]) => s),
+        );
         const label = `${z.label}${severity ? `, pain ${severity} of 10` : ""}`;
         const props = {
           className: [
             "zone",
             onPick && "interactive",
-            selected === z.id && "selected",
-            highlighted === z.id && "highlighted",
+            selected && zoneCovers(z.id, selected, view) && "selected",
+            highlighted && zoneCovers(z.id, highlighted, view) && "highlighted",
+            highlighted && tentative && zoneCovers(z.id, highlighted, view) && "tentative",
           ]
             .filter(Boolean)
             .join(" "),

@@ -15,6 +15,7 @@ Rules:
   question = the patient is asking a yes/no question about it;
   negation = the patient is saying it is NOT so (denies it);
   intensified = the patient is stressing it is severe or strong.
+- POINT-<ZONE> means the patient pointed at or touched that part of their own body. L/R prefixes are the patient's left/right: POINT-LCHEST = left side of the chest, POINT-LKNEE = left knee, POINT-RUQ / LUQ / RLQ / LLQ = right/left upper/lower abdominal quadrant, POINT-NAVEL = around the navel, POINT-REYE = right eye. With BACK, it is the back of that area.
 - If the gloss is unclear, stay literal rather than guessing.
 - One sentence, under 25 words, plain clinical English.`;
 
