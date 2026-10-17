@@ -58,8 +58,40 @@ button:focus-visible, svg [tabindex]:focus-visible { outline: 2px solid var(--ac
 .gloss { font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace; font-size: 12.5px; color: var(--muted); }
 .face { font-size: 13.5px; color: var(--muted); margin-top: 4px; }
 .chip.flag { background: var(--accent-soft); color: var(--accent); }
+.chip.ok { background: #ddf0e4; color: #2b7a4b; }
+@media (prefers-color-scheme: dark) { .chip.ok { background: #14301f; color: #62c58a; } }
+.btn.small { padding: 2px 10px; font-size: 13px; }
 .chip.confirm { background: #fff4d6; color: #7a5600; }
 @media (prefers-color-scheme: dark) { .chip.confirm { background: #3a2f10; color: #f1c75b; } }
+
+/* Pain trend chart. Series slots 1–3 from the validated reference palette,
+   checked against these panel surfaces (light #fff, dark #112126). */
+.viz {
+  --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a;
+  --viz-grid: #e1e0d9; --viz-axis: #c3c2b7; --viz-muted: #898781;
+}
+@media (prefers-color-scheme: dark) {
+  .viz { --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --viz-grid: #25393e; --viz-axis: #3a5056; }
+}
+.viz svg { display: block; overflow: visible; }
+.viz .grid { stroke: var(--viz-grid); stroke-width: 1; }
+.viz .axis { stroke: var(--viz-axis); stroke-width: 1; }
+.viz .tick { fill: var(--viz-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.viz .crosshair { stroke: var(--viz-axis); stroke-width: 1; stroke-dasharray: 3 3; }
+.viz .series-line { fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.viz .series-dot { fill: currentColor; stroke: var(--surface); stroke-width: 2; }
+.viz .direct { fill: var(--ink); font-size: 12px; }
+.viz .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+.viz .legend i, .viz .tooltip i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.viz .tooltip { position: absolute; top: 4px; transform: translateX(-50%); pointer-events: none; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; font-size: 12.5px; box-shadow: 0 2px 8px rgba(0,0,0,0.12); white-space: nowrap; }
+.viz details { margin-top: 8px; font-size: 13px; }
+.table { border-collapse: collapse; margin-top: 6px; font-size: 13px; }
+.table th, .table td { text-align: left; padding: 4px 12px 4px 0; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.stats { display: flex; flex-wrap: wrap; gap: 12px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; min-width: 120px; }
+.stat b { display: block; font-size: 26px; }
+.stat.alert b { color: var(--signal); }
+.note { width: 100%; min-height: 360px; font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace; font-size: 12.5px; line-height: 1.5; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 12px; resize: vertical; }
 
 /* Body map */
 .bodymap { width: 100%; max-width: 240px; height: auto; display: block; }

@@ -1,4 +1,4 @@
-import type { ClinicalSentence, GrammarFlag, Priority } from "./types";
+import type { ClinicalSentence, GrammarFlag, Priority, StoredUtterance } from "./types";
 
 // Rule-based clinical sentences. This is the fallback when Gemini is slow or
 // offline, and the source of truth for priority and confirmation, which never
@@ -71,6 +71,19 @@ export function assessPriority(gloss: string[], flag: GrammarFlag): Priority {
   const severeCentralPain =
     flag === "intensified" && gloss.includes("PAIN") && zone !== undefined && CENTRAL_ZONES.has(zone);
   return redFlag || severeCentralPain ? "urgent" : "routine";
+}
+
+// Urgency and confirmation for a stored line, shared by the clinician screen,
+// the review screen and the chart note so they always agree.
+export function assessUtterance(u: StoredUtterance) {
+  const signed = u.speaker === "patient" && u.kind === "sign" && !!u.gloss && !!u.grammarFlag;
+  const needsConfirm = signed ? needsConfirmation(u.grammarFlag, u.confidence) : false;
+  return {
+    urgent: signed ? assessPriority(u.gloss!, u.grammarFlag!) === "urgent" : false,
+    needsConfirm,
+    confirmed: !!u.verifiedBy,
+    unconfirmed: needsConfirm && !u.verifiedBy,
+  };
 }
 
 // A misread facial marker flips the meaning, so the clinician confirms it.

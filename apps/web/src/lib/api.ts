@@ -1,5 +1,7 @@
 import {
   DEMO_ENCOUNTER_ID,
+  type ChartNote,
+  type ReviewData,
   type ClauseRequest,
   type ClauseResult,
   type Encounter,
@@ -61,6 +63,33 @@ export async function sendClause(
     console.warn("POST /clauses failed", err);
     return null;
   }
+}
+
+// Records that a clinician confirmed a line's meaning. The server pushes the
+// updated line to every screen on the encounter.
+export async function verifyUtterance(id: string, clinicianId: string): Promise<StoredUtterance | null> {
+  try {
+    const res = await fetch(`${API_URL}/utterances/${id}/verify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clinicianId }),
+    });
+    return res.ok ? res.json() : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function getReview(id: string): Promise<ReviewData> {
+  const res = await fetch(`${API_URL}/encounters/${id}/review`);
+  if (!res.ok) throw new Error(`GET /encounters/${id}/review failed: ${res.status}`);
+  return res.json();
+}
+
+export async function getChartNote(id: string): Promise<ChartNote> {
+  const res = await fetch(`${API_URL}/encounters/${id}/note`, { method: "POST" });
+  if (!res.ok) throw new Error(`POST /encounters/${id}/note failed: ${res.status}`);
+  return res.json();
 }
 
 export async function postPain(reading: PainReading): Promise<boolean> {

@@ -12,6 +12,7 @@ CREATE TABLE encounters (
 
 -- Every signed phrase, clinician reply and patient answer.
 CREATE TABLE utterances (
+  id            uuid NOT NULL DEFAULT gen_random_uuid(),  -- lets the clinician confirm one exact line
   ts            timestamptz NOT NULL DEFAULT now(),
   encounter_id  uuid NOT NULL REFERENCES encounters,
   speaker       text NOT NULL CHECK (speaker IN ('patient','clinician')),
@@ -35,17 +36,21 @@ CREATE TABLE pain_readings (
   source        text NOT NULL CHECK (source IN ('tap','pointing'))
 ) WITH (tsdb.hypertable, tsdb.segmentby = 'encounter_id');
 
--- Pre-computed pain trend for the chart-review screen.
-CREATE MATERIALIZED VIEW pain_by_5min
-WITH (timescaledb.continuous) AS
-SELECT time_bucket('5 minutes', ts) AS bucket,
+CREATE INDEX utterances_id_idx ON utterances (id);
+
+-- Pre-computed pain trend for the chart-review screen. One-minute buckets so a
+-- short visit still draws a line; real-time aggregation (materialized_only =
+-- false) includes readings from seconds ago that the policy hasn't refreshed yet.
+CREATE MATERIALIZED VIEW pain_by_minute
+WITH (timescaledb.continuous, timescaledb.materialized_only = false) AS
+SELECT time_bucket('1 minute', ts) AS bucket,
        encounter_id,
        zone,
        max(severity) AS peak
 FROM pain_readings
 GROUP BY 1, 2, 3;
 
-SELECT add_continuous_aggregate_policy('pain_by_5min',
+SELECT add_continuous_aggregate_policy('pain_by_minute',
   start_offset      => INTERVAL '1 day',
   end_offset        => INTERVAL '1 minute',
   schedule_interval => INTERVAL '1 minute');

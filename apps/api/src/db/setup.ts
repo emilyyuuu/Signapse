@@ -1,7 +1,7 @@
 // One-time database setup: applies db/schema.sql (if not applied yet) and the
 // seed files to the database in DATABASE_URL. Safe to run more than once.
 //   npm run db:setup -w @synapse/api
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { config } from "dotenv";
 import pg from "pg";
@@ -44,17 +44,37 @@ if (s.exists) {
   console.log("Applied db/schema.sql");
 }
 
-for (const stmt of statements("db/seed/encounters.sql")) await client.query(stmt);
-console.log("Applied db/seed/encounters.sql");
+// Migrations upgrade databases created from an older schema.sql; each is idempotent.
+const migrations = readdirSync(new URL("db/migrations/", root))
+  .filter((f) => f.endsWith(".sql"))
+  .sort();
+for (const file of migrations) {
+  for (const stmt of statements(`db/migrations/${file}`)) await client.query(stmt);
+  console.log(`Applied db/migrations/${file}`);
+}
+
+// Seeds: the demo encounter first (encounters.sql), then sample data.
+const seeds = readdirSync(new URL("db/seed/", root))
+  .filter((f) => f.endsWith(".sql"))
+  .sort((a, b) => (a === "encounters.sql" ? -1 : b === "encounters.sql" ? 1 : a.localeCompare(b)));
+for (const file of seeds) {
+  for (const stmt of statements(`db/seed/${file}`)) await client.query(stmt);
+  console.log(`Applied db/seed/${file}`);
+}
 
 const { rows: [c] } = await client.query(
   `SELECT (SELECT count(*) FROM encounters) AS encounters,
           (SELECT count(*) FROM utterances) AS utterances,
           (SELECT count(*) FROM pain_readings) AS pain_readings,
           (SELECT count(*) FROM timescaledb_information.hypertables
-            WHERE hypertable_name IN ('utterances', 'pain_readings')) AS hypertables`,
+            WHERE hypertable_name IN ('utterances', 'pain_readings')) AS hypertables,
+          (SELECT materialized_only FROM timescaledb_information.continuous_aggregates
+            WHERE view_name = 'pain_by_minute') AS materialized_only,
+          (SELECT count(*) FROM utterances WHERE id IS NULL) AS missing_ids`,
 );
 console.log(
-  `Rows: ${c.encounters} encounters, ${c.utterances} utterances, ${c.pain_readings} pain readings; ${c.hypertables}/2 hypertables`,
+  `Rows: ${c.encounters} encounters, ${c.utterances} utterances, ${c.pain_readings} pain readings; ` +
+    `${c.hypertables}/2 hypertables; pain_by_minute real-time: ${c.materialized_only === false}; ` +
+    `utterances without id: ${c.missing_ids}`,
 );
 await client.end();
