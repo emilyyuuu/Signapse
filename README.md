@@ -96,7 +96,7 @@ Rules the API enforces (anything else gets a 400):
 - `nmm`: up to 20 keys, each a number or short text. `GrammarResult.to_nmm()` fits as is.
 - No other fields. Never send frames or landmarks.
 
-The demo encounter id is `00000000-0000-4000-8000-000000000001`. From browser code, `sendClause` in `apps/web/src/lib/api.ts` does the same call.
+To find the visit to send to, `GET /encounters?active=true` lists open visits, newest first (the clinician starts one with **New visit**). Sends to an ended visit get a 409. The demo encounter id is `00000000-0000-4000-8000-000000000001`. The API rate-limits each client (30 Gemini-backed calls and 120 writes per minute by default), so send one clause per pause, not per frame. From browser code, `sendClause` in `apps/web/src/lib/api.ts` does the same call.
 
 To test without a camera, call the endpoint directly:
 

@@ -5,6 +5,7 @@ import type { Store } from "../db/client.js";
 import type { GeminiConfig } from "../language/gemini.js";
 import { translateClause } from "../language/translate.js";
 import { broadcast } from "../ws/rooms.js";
+import { openEncounterError } from "./events.js";
 import { confidenceSchema, glossSchema, grammarFlagSchema, nmmSchema } from "./schemas.js";
 
 const translateSchema = z
@@ -43,7 +44,8 @@ export function translateRoutes(store: Store, gemini: GeminiConfig | null) {
     const parsed = clauseSchema.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400);
     const { encounterId, gloss, grammarFlag, confidence, nmm } = parsed.data;
-    if (!(await store.getEncounter(encounterId))) return c.json({ error: "unknown encounter" }, 404);
+    const closed = await openEncounterError(store, encounterId);
+    if (closed) return c.json({ error: closed.error }, closed.status);
 
     const t = await translateClause(gloss, grammarFlag, confidence, nmm, gemini);
     const utterance = await store.insertUtterance({

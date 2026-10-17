@@ -119,7 +119,8 @@ export interface StoredPainReading extends PainReading {
 export type RoomMessage =
   | { type: "utterance"; data: StoredUtterance }
   | { type: "verified"; data: StoredUtterance } // a clinician confirmed an existing line
-  | { type: "pain"; data: StoredPainReading };
+  | { type: "pain"; data: StoredPainReading }
+  | { type: "ended"; data: Encounter }; // the visit was ended; screens stop accepting input
 
 // One point of the pain trend (continuous aggregate pain_by_minute).
 export interface PainTrendPoint {

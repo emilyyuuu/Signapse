@@ -14,6 +14,9 @@ export interface Store {
   kind: "tiger" | "memory";
   getEncounter(id: string): Promise<Encounter | null>;
   createEncounter(patientRef: string, clinicianId: string): Promise<Encounter>;
+  endEncounter(id: string): Promise<Encounter | null>;
+  // Visits not yet ended, newest first, so a patient station can find one to join.
+  listActiveEncounters(limit: number): Promise<Encounter[]>;
   listUtterances(encounterId: string): Promise<StoredUtterance[]>;
   listPain(encounterId: string): Promise<StoredPainReading[]>;
   insertUtterance(u: UtteranceEvent): Promise<StoredUtterance>;
@@ -90,6 +93,20 @@ function tigerStore(connectionString: string): Store {
         [patientRef, clinicianId],
       );
       return toEncounter(rows[0]);
+    },
+    async endEncounter(id) {
+      const { rows } = await pool.query(
+        "UPDATE encounters SET ended_at = coalesce(ended_at, now()) WHERE encounter_id = $1 RETURNING *",
+        [id],
+      );
+      return rows[0] ? toEncounter(rows[0]) : null;
+    },
+    async listActiveEncounters(limit) {
+      const { rows } = await pool.query(
+        "SELECT * FROM encounters WHERE ended_at IS NULL ORDER BY started_at DESC LIMIT $1",
+        [limit],
+      );
+      return rows.map(toEncounter);
     },
     async listUtterances(encounterId) {
       const { rows } = await pool.query(
@@ -183,6 +200,18 @@ function memoryStore(): Store {
       };
       encounters.set(e.encounterId, e);
       return e;
+    },
+    async endEncounter(id) {
+      const e = encounters.get(id);
+      if (!e) return null;
+      e.endedAt ??= new Date().toISOString();
+      return e;
+    },
+    async listActiveEncounters(limit) {
+      return [...encounters.values()]
+        .filter((e) => !e.endedAt)
+        .sort((a, b) => b.startedAt.localeCompare(a.startedAt))
+        .slice(0, limit);
     },
     async listUtterances(encounterId) {
       return utterances.filter((u) => u.encounterId === encounterId);
