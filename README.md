@@ -21,6 +21,27 @@ This is a hackathon project (about 36 hours). The full plan, a clickable prototy
 
 React + Vite + TypeScript (or Next.js), with routes for **patient**, **clinician** and **review**. A Node API (Hono or Fastify, `pg`, one WebSocket room per encounter) validates and relays events. Tiger Cloud is set up with the Tiger CLI or Tiger MCP. The frontend is deployed on Vercel/Netlify and the API on Render/Fly (HTTPS is required for the camera).
 
+## Repo layout
+
+```
+apps/web/             React + Vite frontend
+  src/routes/         patient, clinician, review screens
+  src/recognition/    MediaPipe landmarks, normalization, DTW + k-NN
+  src/grammar/        facial grammar rules (calibration, flags)
+  src/language/       phrase table, sentence templates, plain-language replies
+  src/components/     shared UI (bodymap/, ...)
+  src/wizard/         wizard-mode operator panel
+  src/lib/            event queue, API/WebSocket client
+apps/api/             Node API
+  src/routes/         /events, encounters, verify, chart note
+  src/ws/             one WebSocket room per encounter
+  src/db/             pg client and queries
+packages/shared/      shared TypeScript contracts (types.ts)
+db/schema.sql         Tiger Data schema; db/seed/ for sample encounters
+data/signs/           recorded sign templates (landmark JSON only, never video)
+tools/recorder/       recorder tool for labelled landmark takes
+```
+
 ## Shared contracts (agree these first)
 
 - **Sign event:** label, confidence, start/end time. Wizard mode emits the same shape.
