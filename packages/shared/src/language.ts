@@ -1,3 +1,4 @@
+import { BODY_VIEWS, ZONE_LABELS, ZONE_PARENT } from "./bodyZones";
 import type { ClinicalSentence, GrammarFlag, Priority } from "./types";
 
 // Rule-based clinical sentences. This is the fallback when Gemini is slow or
@@ -12,32 +13,84 @@ const ZONES: Record<string, { zone: string; adj: string }> = {
   BACK: { zone: "lowerback", adj: "back" },
 };
 
+// Pointing at your own body arrives as a gloss token, e.g. POINT-CHEST.
+const POINT_PREFIX = "POINT-";
+// A hand can't be seen behind the body, so BACK + pointing at the front means its back.
+const BACK_OF: Record<string, string> = {
+  head: "headback",
+  ...Object.fromEntries(BODY_VIEWS.face.map((z) => [z.id, "headback"])),
+  neck: "neckback",
+  chest: "upperback",
+  rchest: "rupperback",
+  lchest: "lupperback",
+  abdomen: "lowerback",
+  navel: "lowerback",
+  ruq: "rlowerback",
+  rlq: "rlowerback",
+  luq: "llowerback",
+  llq: "llowerback",
+  pelvis: "buttocks",
+};
+const ZONE_ADJ: Record<string, string> = {
+  abdomen: "abdominal",
+  ruq: "right upper abdominal",
+  luq: "left upper abdominal",
+  rlq: "right lower abdominal",
+  llq: "left lower abdominal",
+};
+
+// Coarse region of a zone: lchest -> chest, nose -> head, chest -> chest.
+export const regionOf = (zone: string) => ZONE_PARENT[zone] ?? zone;
+
+export const pointGloss = (zone: string) => `${POINT_PREFIX}${zone.toUpperCase()}`;
+
+// Zone the patient pointed at in this clause, if any.
+export function pointedZone(gloss: string[]): string | undefined {
+  const token = gloss.find((g) => g.startsWith(POINT_PREFIX));
+  const zone = token?.slice(POINT_PREFIX.length).toLowerCase();
+  if (!zone || !(zone in ZONE_LABELS)) return undefined;
+  return gloss.includes("BACK") ? (BACK_OF[zone] ?? zone) : zone;
+}
+
+function zoneAdj(zone: string) {
+  return ZONE_ADJ[zone] ?? ZONE_LABELS[zone].toLowerCase();
+}
+
 const SYMPTOMS: Record<string, string> = {
   DIZZY: "dizziness",
   NAUSEA: "nausea",
   FEVER: "a fever",
 };
 
-// Urgent whenever the patient affirms them.
-const URGENT_COMPLAINTS = new Set(["chest pain", "difficulty breathing"]);
-// Severe pain in these body-map zones is urgent, following ER triage practice
-// for severe central pain. To be reviewed by someone with clinical knowledge (task L1).
-const CENTRAL_ZONES = new Set(["head", "headback", "chest", "abdomen"]);
+// Urgent whenever the patient affirms them: breathing trouble, and pain anywhere in
+// these regions (chest pain on either side counts).
+const URGENT_COMPLAINTS = new Set(["difficulty breathing"]);
+const URGENT_PAIN_REGIONS = new Set(["chest"]);
+// Severe pain in these zones or regions is urgent, following ER triage practice
+// for severe central pain. Face parts other than the forehead are not central.
+// To be reviewed by someone with clinical knowledge (task L1).
+const CENTRAL_ZONES = new Set(["head", "headback", "forehead"]);
+const CENTRAL_REGIONS = new Set(["chest", "abdomen"]);
+const isCentral = (zone: string) => CENTRAL_ZONES.has(zone) || CENTRAL_REGIONS.has(regionOf(zone));
 const SEVERE_PAIN = 8; // on the 0–10 scale
 
 export function complaintOf(gloss: string[]): { complaint?: string; zone?: string } {
-  const loc = gloss.map((g) => ZONES[g]).find(Boolean);
+  // Where the patient pointed beats a signed location.
+  const pointed = pointedZone(gloss);
+  const loc = pointed ? { zone: pointed, adj: zoneAdj(pointed) } : gloss.map((g) => ZONES[g]).find(Boolean);
   const zone = loc?.zone;
   if (gloss.includes("BREATHE")) return { complaint: "difficulty breathing", zone: "chest" };
   if (gloss.includes("PAIN")) {
-    return { complaint: zone === "head" ? "a headache" : loc ? `${loc.adj} pain` : "pain", zone };
+    const complaint =
+      zone === "head" ? "a headache" : zone === "navel" ? "pain around the navel" : loc ? `${loc.adj} pain` : "pain";
+    return { complaint, zone };
   }
   return { complaint: gloss.map((g) => SYMPTOMS[g]).find(Boolean), zone };
 }
 
 // Body-map readings use the same triage rule as signed severe pain.
 export function painPriority(zone: string, severity: number): Priority {
-  return severity >= SEVERE_PAIN && CENTRAL_ZONES.has(zone) ? "urgent" : "routine";
+  return severity >= SEVERE_PAIN && isCentral(zone) ? "urgent" : "routine";
 }
 
 function severe(complaint: string) {
@@ -49,7 +102,13 @@ export function templateSentence(gloss: string[], flag: GrammarFlag): string {
     return `The patient answers ${gloss[0].toLowerCase()}.`;
   }
   const { complaint } = complaintOf(gloss);
-  if (!complaint) return `The patient signed: ${gloss.join(" ")}.`;
+  if (!complaint) {
+    const pointed = pointedZone(gloss);
+    if (!pointed) return `The patient signed: ${gloss.join(" ")}.`;
+    const where = `the ${ZONE_LABELS[pointed].toLowerCase()}`;
+    const signs = gloss.filter((g) => !g.startsWith(POINT_PREFIX));
+    return signs.length ? `The patient signed: ${signs.join(" ")}, pointing to ${where}.` : `The patient points to ${where}.`;
+  }
   switch (flag) {
     case "question":
       return `The patient is asking about ${complaint}.`;
@@ -65,9 +124,9 @@ export function templateSentence(gloss: string[], flag: GrammarFlag): string {
 export function assessPriority(gloss: string[], flag: GrammarFlag): Priority {
   const { complaint, zone } = complaintOf(gloss);
   const affirmed = flag === "statement" || flag === "intensified";
-  const redFlag = complaint !== undefined && URGENT_COMPLAINTS.has(complaint) && affirmed;
-  const severeCentralPain =
-    flag === "intensified" && gloss.includes("PAIN") && zone !== undefined && CENTRAL_ZONES.has(zone);
+  const urgentPain = gloss.includes("PAIN") && zone !== undefined && URGENT_PAIN_REGIONS.has(regionOf(zone));
+  const redFlag = ((complaint !== undefined && URGENT_COMPLAINTS.has(complaint)) || urgentPain) && affirmed;
+  const severeCentralPain = flag === "intensified" && gloss.includes("PAIN") && zone !== undefined && isCentral(zone);
   return redFlag || severeCentralPain ? "urgent" : "routine";
 }
 

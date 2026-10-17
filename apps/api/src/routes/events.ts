@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { ZONE_IDS } from "@synapse/shared";
+import { ZONE_IDS, type StoredPointEvent } from "@synapse/shared";
 import type { Store } from "../db/client.js";
 import { broadcast } from "../ws/rooms.js";
 import { confidenceSchema, grammarFlagSchema, nmmSchema } from "./schemas.js";
@@ -32,6 +32,16 @@ const painSchema = z
   })
   .strict();
 
+// The patient is pointing at a zone on their own body. Zone id and a score only.
+const pointSchema = z
+  .object({
+    encounterId: z.string().uuid(),
+    zone: z.enum(ZONE_IDS),
+    confidence: confidenceSchema,
+    gesture: z.enum(["point", "touch"]).optional(),
+  })
+  .strict();
+
 const encounterSchema = z
   .object({ patientRef: text(64), clinicianId: text(64) })
   .strict();
@@ -59,6 +69,18 @@ export function eventRoutes(store: Store) {
     const row = await store.insertPain(parsed.data);
     broadcast(row.encounterId, { type: "pain", data: row });
     return c.json(row, 201);
+  });
+
+  // Live only, not stored: the clause gloss and the confirmed pain reading are the record.
+  r.post("/point", async (c) => {
+    const parsed = pointSchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400);
+    if (!(await store.getEncounter(parsed.data.encounterId))) {
+      return c.json({ error: "unknown encounter" }, 404);
+    }
+    const point: StoredPointEvent = { ...parsed.data, ts: new Date().toISOString() };
+    broadcast(point.encounterId, { type: "point", data: point });
+    return c.json(point, 201);
   });
 
   r.post("/encounters", async (c) => {
