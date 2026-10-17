@@ -48,6 +48,43 @@ tools/recorder/       recorder tool for labelled landmark takes
 - **Clause:** the signs in one clause plus its face/head frames, which go in to produce a grammar flag.
 - **Utterance event:** speaker, kind, gloss, markers, flag, sentence, confidence. This is text only, and it is the only thing that leaves the device.
 
+## Connecting sign recognition and facial grammar
+
+When the patient pauses after a clause, the vision process POSTs the signs and the facial-grammar result to the API's `/clauses` endpoint. The server turns it into a clinical sentence (Gemini, with a rule-based fallback), saves it and pushes it to the clinician screen.
+
+From Python (`apps/facial_grammar`), standard library only:
+
+```python
+import json, urllib.request
+
+def send_clause(encounter_id, gloss, result, confidence=None, api="http://localhost:8787"):
+    """gloss: sign labels, e.g. ["PAIN", "CHEST"]; result: GrammarResult from rules.py."""
+    body = {"encounterId": encounter_id, "gloss": gloss,
+            "grammarFlag": str(result.flag), "nmm": result.to_nmm()}
+    if confidence is not None:
+        body["confidence"] = confidence  # 0..1, lowest sign confidence in the clause
+    req = urllib.request.Request(f"{api}/clauses", data=json.dumps(body).encode(),
+                                 headers={"Content-Type": "application/json"}, method="POST")
+    with urllib.request.urlopen(req, timeout=10) as res:
+        return json.load(res)  # {utterance, priority, needsConfirm, source}
+```
+
+Rules the API enforces (anything else gets a 400):
+- `gloss`: 1–20 uppercase sign names (`PAIN`, `CHEST`), no free text.
+- `grammarFlag`: `statement`, `question`, `negation` or `intensified`.
+- `nmm`: up to 20 keys, each a number or short text. `GrammarResult.to_nmm()` fits as is.
+- No other fields. Never send frames or landmarks.
+
+The demo encounter id is `00000000-0000-4000-8000-000000000001`. From browser code, `sendClause` in `apps/web/src/lib/api.ts` does the same call.
+
+To test without a camera, call the endpoint directly:
+
+```cmd
+curl -X POST http://localhost:8787/clauses -H "Content-Type: application/json" -d "{\"encounterId\":\"00000000-0000-4000-8000-000000000001\",\"gloss\":[\"PAIN\",\"CHEST\"],\"grammarFlag\":\"statement\",\"confidence\":0.9}"
+```
+
+For body-map pointing, call `report(zone, severity, "pointing")` from `usePainMap`, and pass `highlighted={zoneId}` to `<BodyMap>` while the fingertip hovers. Zone ids and shapes are in `BODY_VIEWS` in `packages/shared/src/bodyZones.ts`.
+
 ## Non-negotiables
 
 - **Privacy:** camera frames and landmarks are processed in the browser and discarded. The API rejects anything that isn't text or numbers. Patients are tokens, not names. The UI shows a live "video frames sent: 0" counter. Chrome's `SpeechRecognition` sends audio to the cloud, so don't use it outside a clearly labelled stand-in.

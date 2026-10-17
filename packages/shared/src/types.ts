@@ -75,6 +75,22 @@ export interface TranslateResult extends ClinicalSentence {
   source: "gemini" | "template";
 }
 
+// POST /clauses: what sign recognition sends when the patient pauses.
+export interface ClauseRequest {
+  encounterId: string;
+  gloss: string[]; // sign labels, e.g. ["PAIN", "CHEST"]
+  grammarFlag: GrammarFlag; // from the facial grammar engine
+  confidence?: number; // 0–1, lowest sign confidence in the clause
+  nmm?: Record<string, number | string>; // facial-marker summary, e.g. {"browRaise": 0.82}
+}
+
+export interface ClauseResult {
+  utterance: StoredUtterance;
+  priority: Priority;
+  needsConfirm: boolean;
+  source: TranslateResult["source"];
+}
+
 export interface Encounter {
   encounterId: string;
   patientRef: string;

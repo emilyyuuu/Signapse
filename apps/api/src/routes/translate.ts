@@ -1,35 +1,65 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { buildClinicalSentence, type TranslateResult } from "@synapse/shared";
-import { geminiSentence, type GeminiConfig } from "../language/gemini.js";
+import type { ClauseResult } from "@synapse/shared";
+import type { Store } from "../db/client.js";
+import type { GeminiConfig } from "../language/gemini.js";
+import { translateClause } from "../language/translate.js";
+import { broadcast } from "../ws/rooms.js";
+import { confidenceSchema, glossSchema, grammarFlagSchema, nmmSchema } from "./schemas.js";
 
-// Gloss labels only (e.g. PAIN, CHEST): uppercase sign names, so no free text
-// such as names or notes can reach the language model.
 const translateSchema = z
+  .object({ gloss: glossSchema, grammarFlag: grammarFlagSchema, confidence: confidenceSchema.optional() })
+  .strict();
+
+const clauseSchema = z
   .object({
-    gloss: z.array(z.string().regex(/^[A-Z][A-Z0-9-]{0,24}$/)).min(1).max(20),
-    grammarFlag: z.enum(["statement", "question", "negation", "intensified"]),
-    confidence: z.number().min(0).max(1).optional(),
+    encounterId: z.string().uuid(),
+    gloss: glossSchema,
+    grammarFlag: grammarFlagSchema,
+    confidence: confidenceSchema.optional(),
+    nmm: nmmSchema.optional(),
   })
   .strict();
 
-export function translateRoutes(gemini: GeminiConfig | null) {
+export function translateRoutes(store: Store, gemini: GeminiConfig | null) {
   const r = new Hono();
 
+  // Preview only: returns the sentence without saving or sending it.
   r.post("/translate", async (c) => {
     const parsed = translateSchema.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400);
     const { gloss, grammarFlag, confidence } = parsed.data;
+    return c.json(await translateClause(gloss, grammarFlag, confidence, gemini));
+  });
 
-    // Priority and confirmation come from fixed rules; Gemini only writes the wording.
-    const base = buildClinicalSentence(gloss, grammarFlag, confidence);
-    const ai = gemini ? await geminiSentence(gloss, grammarFlag, gemini) : null;
-    const result: TranslateResult = {
-      ...base,
-      sentence: ai ?? base.sentence,
-      source: ai ? "gemini" : "template",
+  // What sign recognition calls when the patient pauses: signs + facial grammar
+  // in, clinical sentence saved and pushed to the clinician screen.
+  r.post("/clauses", async (c) => {
+    const parsed = clauseSchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400);
+    const { encounterId, gloss, grammarFlag, confidence, nmm } = parsed.data;
+    if (!(await store.getEncounter(encounterId))) return c.json({ error: "unknown encounter" }, 404);
+
+    const t = await translateClause(gloss, grammarFlag, confidence, gemini);
+    const utterance = await store.insertUtterance({
+      encounterId,
+      speaker: "patient",
+      kind: "sign",
+      gloss,
+      nmm,
+      grammarFlag,
+      sentence: t.sentence,
+      confidence,
+    });
+    broadcast(encounterId, { type: "utterance", data: utterance });
+
+    const result: ClauseResult = {
+      utterance,
+      priority: t.priority,
+      needsConfirm: t.needsConfirm,
+      source: t.source,
     };
-    return c.json(result);
+    return c.json(result, 201);
   });
 
   return r;
