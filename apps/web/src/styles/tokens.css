@@ -52,8 +52,16 @@ button:focus-visible, svg [tabindex]:focus-visible { outline: 2px solid var(--ac
 .bodymap { width: 100%; max-width: 240px; height: auto; display: block; }
 .zone { stroke: var(--line); stroke-width: 1.2; transition: fill 0.2s; }
 .zone.interactive { cursor: pointer; }
+.face-outline { fill: none; stroke: var(--line); stroke-width: 1.2; }
 .zone.interactive:hover { stroke: var(--accent); }
 .zone.selected, .zone.highlighted { stroke: var(--accent); stroke-width: 2.6; }
+/* Where the patient is pointing, from the camera */
+.zone.highlighted { animation: pointed 1s ease-in-out infinite alternate; }
+@keyframes pointed { from { stroke-width: 1.6; } to { stroke-width: 3.6; } }
+@media (prefers-reduced-motion: reduce) { .zone.highlighted { animation: none; } }
+/* A touch is a suggestion until the patient confirms it */
+.zone.tentative { stroke-dasharray: 4 3; }
+.callout { margin: 0 0 12px; padding: 8px 12px; border-radius: 6px; background: var(--accent-soft); border-left: 3px solid var(--accent); }
 
 /* Severity picker: big targets for a patient in pain, possibly on a tablet */
 .severity { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
