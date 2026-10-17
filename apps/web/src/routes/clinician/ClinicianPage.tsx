@@ -1,8 +1,14 @@
 import { useEffect, useState } from "react";
-import { assessUtterance, type StoredUtterance } from "@synapse/shared";
+import { assessUtterance, type Encounter, type StoredUtterance } from "@synapse/shared";
 import { speak, speechSupported, unlockVoice } from "../../language/speak";
 import { chime, unlockChime } from "../../language/chime";
-import { encounterIdFromUrl, getEncounter, verifyUtterance } from "../../lib/api";
+import {
+  createEncounter,
+  encounterIdFromUrl,
+  endEncounter,
+  getEncounter,
+  verifyUtterance,
+} from "../../lib/api";
 import { useRoom } from "../../lib/useRoom";
 import { BodyMap } from "../../components/bodymap/BodyMap";
 import { PainList } from "../../components/bodymap/PainList";
@@ -18,16 +24,17 @@ function spokenText(u: StoredUtterance) {
 export function ClinicianPage() {
   const encounterId = encounterIdFromUrl();
   const [lines, setLines] = useState<StoredUtterance[]>([]);
-  const [clinicianId, setClinicianId] = useState<string>();
+  const [encounter, setEncounter] = useState<Encounter>();
   const [alert, setAlert] = useState<StoredUtterance | null>(null);
   const [voiceOn, setVoiceOn] = useState(false);
+  const [busy, setBusy] = useState(false);
   const { pain, apply } = usePainMap(encounterId);
 
   // Past sentences, so a refresh doesn't empty the log.
   useEffect(() => {
     getEncounter(encounterId)
       .then((h) => {
-        setClinicianId(h.encounter.clinicianId);
+        setEncounter(h.encounter);
         setLines((prev) => mergeLines(h.utterances, prev));
       })
       .catch((err) => console.warn(err));
@@ -36,6 +43,10 @@ export function ClinicianPage() {
   const { connected } = useRoom(encounterId, (msg) => {
     if (msg.type === "pain") {
       apply(msg.data);
+      return;
+    }
+    if (msg.type === "ended") {
+      setEncounter(msg.data);
       return;
     }
     const u = msg.data;
@@ -50,9 +61,31 @@ export function ClinicianPage() {
   });
 
   const confirm = async (id: string) => {
-    const row = await verifyUtterance(id, clinicianId ?? "clinician");
+    const row = await verifyUtterance(id, encounter?.clinicianId ?? "clinician");
     if (row) setLines((prev) => mergeLines(prev, [row]));
     return !!row;
+  };
+
+  const newVisit = async () => {
+    setBusy(true);
+    try {
+      const e = await createEncounter(encounter?.clinicianId);
+      location.href = `/clinician?e=${e.encounterId}`;
+    } catch (err) {
+      console.warn(err);
+      setBusy(false);
+    }
+  };
+
+  const endVisit = async () => {
+    setBusy(true);
+    try {
+      setEncounter(await endEncounter(encounterId));
+    } catch (err) {
+      console.warn(err);
+    } finally {
+      setBusy(false);
+    }
   };
 
   const latest = lines.at(-1);
@@ -68,11 +101,31 @@ export function ClinicianPage() {
         </div>
       )}
 
-      <h1 style={{ marginTop: 0 }}>Clinician</h1>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", justifyContent: "space-between" }}>
+        <h1 style={{ margin: 0 }}>
+          Clinician{encounter && <span className="muted"> · {encounter.patientRef}</span>}
+        </h1>
+        <span style={{ display: "flex", gap: 8 }}>
+          {encounter && !encounter.endedAt && (
+            <button className="btn" onClick={endVisit} disabled={busy}>
+              End visit
+            </button>
+          )}
+          <button className="btn primary" onClick={newVisit} disabled={busy}>
+            New visit
+          </button>
+        </span>
+      </div>
       <p className="muted">
-        Encounter <code>{encounterId}</code> · {connected ? "live" : "connecting…"} ·{" "}
-        <a href={`/review?e=${encounterId}`}>Review and chart note</a>
+        {connected ? "Live" : "Connecting…"} · <a href={`/review?e=${encounterId}`}>Review and chart note</a> ·{" "}
+        <a href="/">All visits</a>
       </p>
+      {encounter?.endedAt && (
+        <div className="ended" role="status">
+          This visit ended at {new Date(encounter.endedAt).toLocaleTimeString()}. New signs and taps are no longer
+          accepted. <a href={`/review?e=${encounterId}`}>Open the review and chart note</a>.
+        </div>
+      )}
 
       {!speechSupported ? (
         <p>This browser has no built-in voice. Sentences are shown as text only.</p>

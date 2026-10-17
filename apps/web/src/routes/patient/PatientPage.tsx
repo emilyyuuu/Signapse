@@ -1,6 +1,6 @@
-import { useState } from "react";
-import type { BodyView } from "@synapse/shared";
-import { encounterIdFromUrl } from "../../lib/api";
+import { useEffect, useState } from "react";
+import type { BodyView, Encounter } from "@synapse/shared";
+import { encounterIdFromUrl, getEncounter } from "../../lib/api";
 import { useRoom } from "../../lib/useRoom";
 import { BodyMap } from "../../components/bodymap/BodyMap";
 import { SeverityPicker } from "../../components/bodymap/SeverityPicker";
@@ -14,10 +14,18 @@ export function PatientPage() {
   const [view, setView] = useState<BodyView>("front");
   const [selected, setSelected] = useState<string>();
   const [sendFailed, setSendFailed] = useState(false);
+  const [encounter, setEncounter] = useState<Encounter>();
+
+  useEffect(() => {
+    getEncounter(encounterId)
+      .then((h) => setEncounter(h.encounter))
+      .catch((err) => console.warn(err));
+  }, [encounterId]);
 
   // Keeps this screen in sync if another device (or the camera) reports pain.
   const { connected } = useRoom(encounterId, (msg) => {
     if (msg.type === "pain") apply(msg.data);
+    if (msg.type === "ended") setEncounter(msg.data);
   });
 
   // One tap sets the level and closes the picker; the map shows the result.
@@ -28,10 +36,22 @@ export function PatientPage() {
     setSendFailed(!(await report(zone, severity)));
   };
 
+  if (encounter?.endedAt) {
+    return (
+      <main className="page">
+        <h1 style={{ marginTop: 0 }}>This visit has ended</h1>
+        <p style={{ fontSize: 20 }}>Thank you. A staff member will be with you.</p>
+      </main>
+    );
+  }
+
   return (
     <main className="page">
       <h1 style={{ marginTop: 0 }}>Where does it hurt?</h1>
-      <p className="muted">Tap the body, then choose how much it hurts. {connected ? "" : "Connecting…"}</p>
+      <p className="muted">
+        Tap the body, then choose how much it hurts. {encounter && `Visit ${encounter.patientRef}. `}
+        {connected ? "" : "Connecting…"}
+      </p>
 
       <div className="row">
         <div className="panel" style={{ flex: "0 1 280px" }}>

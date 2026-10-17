@@ -25,6 +25,28 @@ export interface EncounterHistory {
   pain: StoredPainReading[];
 }
 
+export async function createEncounter(clinicianId?: string): Promise<Encounter> {
+  const res = await fetch(`${API_URL}/encounters`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(clinicianId ? { clinicianId } : {}),
+  });
+  if (!res.ok) throw new Error(`Could not start a visit (${res.status})`);
+  return res.json();
+}
+
+export async function endEncounter(id: string): Promise<Encounter> {
+  const res = await fetch(`${API_URL}/encounters/${id}/end`, { method: "POST" });
+  if (!res.ok) throw new Error(`Could not end the visit (${res.status})`);
+  return res.json();
+}
+
+export async function listActiveEncounters(): Promise<Encounter[]> {
+  const res = await fetch(`${API_URL}/encounters?active=true`);
+  if (!res.ok) throw new Error(`Could not load visits (${res.status})`);
+  return res.json();
+}
+
 export async function getEncounter(id: string): Promise<EncounterHistory> {
   const res = await fetch(`${API_URL}/encounters/${id}`);
   if (!res.ok) throw new Error(`GET /encounters/${id} failed: ${res.status}`);

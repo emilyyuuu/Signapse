@@ -1,5 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { HomePage } from "./routes/HomePage";
 import { ClinicianPage } from "./routes/clinician/ClinicianPage";
 import { PatientPage } from "./routes/patient/PatientPage";
 import { ReviewPage } from "./routes/review/ReviewPage";
@@ -11,16 +12,7 @@ function App() {
   if (path.startsWith("/patient")) return <PatientPage />;
   if (path.startsWith("/clinician")) return <ClinicianPage />;
   if (path.startsWith("/review")) return <ReviewPage />;
-  return (
-    <main className="page">
-      <h1>Synapse</h1>
-      <p>
-        <a href={`/patient${location.search}`}>Patient screen</a> ·{" "}
-        <a href={`/clinician${location.search}`}>Clinician screen</a> ·{" "}
-        <a href={`/review${location.search}`}>Chart review</a>
-      </p>
-    </main>
-  );
+  return <HomePage />;
 }
 
 createRoot(document.getElementById("root")!).render(

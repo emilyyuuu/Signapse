@@ -4,6 +4,26 @@ export interface GeminiConfig {
   apiKey: string;
   model: string;
   timeoutMs: number;
+  maxPerMinute: number; // across all clients; over it, callers use their rule-based fallback
+}
+
+// Timestamps of recent Gemini calls, for the global per-minute budget. Keeps a
+// burst of traffic from exhausting the free-tier quota mid-demo.
+const recentCalls: number[] = [];
+let budgetWarned = 0;
+
+function takeBudget(cfg: GeminiConfig) {
+  const now = Date.now();
+  while (recentCalls.length && recentCalls[0] <= now - 60_000) recentCalls.shift();
+  if (recentCalls.length >= cfg.maxPerMinute) {
+    if (now - budgetWarned > 60_000) {
+      console.warn(`Gemini budget of ${cfg.maxPerMinute}/min reached; using rule-based fallback`);
+      budgetWarned = now;
+    }
+    return false;
+  }
+  recentCalls.push(now);
+  return true;
 }
 
 const INSTRUCTIONS = `You turn ASL gloss signed by a Deaf patient into one short clinical sentence for a doctor.
@@ -70,6 +90,7 @@ async function geminiText(
   timeoutMs: number,
   cfg: GeminiConfig,
 ): Promise<string | null> {
+  if (!takeBudget(cfg)) return null;
   const generationConfig: Record<string, unknown> = {
     temperature: 0.2,
     maxOutputTokens,
