@@ -3,6 +3,7 @@ import { z } from "zod";
 import { ZONE_IDS } from "@synapse/shared";
 import type { Store } from "../db/client.js";
 import { broadcast } from "../ws/rooms.js";
+import { confidenceSchema, grammarFlagSchema, nmmSchema } from "./schemas.js";
 
 // Only short text and numbers are accepted, and unknown keys are rejected,
 // so there is no field that could carry video, images or landmarks.
@@ -14,14 +15,11 @@ const utteranceSchema = z
     speaker: z.enum(["patient", "clinician"]),
     kind: z.enum(["sign", "reply", "answer"]),
     gloss: z.array(text(40)).max(30).optional(),
-    nmm: z
-      .record(z.union([z.number(), text(40)]))
-      .refine((o) => Object.keys(o).length <= 20, "too many markers")
-      .optional(),
-    grammarFlag: z.enum(["statement", "question", "negation", "intensified"]).optional(),
+    nmm: nmmSchema.optional(),
+    grammarFlag: grammarFlagSchema.optional(),
     sentence: text(500),
     plainText: text(500).optional(),
-    confidence: z.number().min(0).max(1).optional(),
+    confidence: confidenceSchema.optional(),
   })
   .strict();
 

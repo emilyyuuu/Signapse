@@ -33,7 +33,7 @@ app.use("*", cors({ origin: allowedOrigins }));
 app.use("*", bodyLimit({ maxSize: 16 * 1024 }));
 app.get("/health", (c) => c.json({ ok: true, store: store.kind }));
 app.route("/", eventRoutes(store));
-app.route("/", translateRoutes(gemini));
+app.route("/", translateRoutes(store, gemini));
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(
