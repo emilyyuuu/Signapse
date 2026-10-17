@@ -1,0 +1,9 @@
+{
+  "name": "synapse",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev:web": "npm run dev -w @synapse/web",
+    "dev:api": "npm run dev -w @synapse/api"
+  }
+}
