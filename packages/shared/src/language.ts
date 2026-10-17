@@ -40,11 +40,13 @@ export function painPriority(zone: string, severity: number): Priority {
   return severity >= SEVERE_PAIN && CENTRAL_ZONES.has(zone) ? "urgent" : "routine";
 }
 
-function severe(complaint: string) {
-  return complaint.startsWith("a ") ? `a severe ${complaint.slice(2)}` : `severe ${complaint}`;
+function intensify(complaint: string, word: string) {
+  return complaint.startsWith("a ") ? `a ${word} ${complaint.slice(2)}` : `${word} ${complaint}`;
 }
 
-export function templateSentence(gloss: string[], flag: GrammarFlag): string {
+// faceStrong: whether the facial markers were strong. Undefined (no face scores)
+// keeps the stronger wording, so emphasis is never understated.
+export function templateSentence(gloss: string[], flag: GrammarFlag, faceStrong?: boolean): string {
   if (gloss.length === 1 && (gloss[0] === "YES" || gloss[0] === "NO")) {
     return `The patient answers ${gloss[0].toLowerCase()}.`;
   }
@@ -56,7 +58,7 @@ export function templateSentence(gloss: string[], flag: GrammarFlag): string {
     case "negation":
       return `The patient denies ${complaint}.`;
     case "intensified":
-      return `The patient reports ${severe(complaint)}.`;
+      return `The patient reports ${intensify(complaint, faceStrong === false ? "significant" : "severe")}.`;
     default:
       return `The patient reports ${complaint}.`;
   }
@@ -71,18 +73,23 @@ export function assessPriority(gloss: string[], flag: GrammarFlag): Priority {
   return redFlag || severeCentralPain ? "urgent" : "routine";
 }
 
+// A misread facial marker flips the meaning, so the clinician confirms it.
+export function needsConfirmation(flag: GrammarFlag | undefined, confidence?: number) {
+  return (flag !== undefined && flag !== "statement") || (confidence ?? 1) < 0.7;
+}
+
 export function buildClinicalSentence(
   gloss: string[],
   flag: GrammarFlag,
   confidence?: number,
+  faceStrong?: boolean,
 ): ClinicalSentence {
   const { complaint, zone } = complaintOf(gloss);
   return {
-    sentence: templateSentence(gloss, flag),
+    sentence: templateSentence(gloss, flag, faceStrong),
     complaint,
     zone,
     priority: assessPriority(gloss, flag),
-    // A misread facial marker flips the meaning, so the clinician confirms it.
-    needsConfirm: flag !== "statement" || (confidence ?? 1) < 0.7,
+    needsConfirm: needsConfirmation(flag, confidence),
   };
 }
