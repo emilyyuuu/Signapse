@@ -1,1 +1,38 @@
 # Synapse
+
+**Real-time sign-to-clinical translation for Deaf and hard-of-hearing patients.**
+
+Synapse translates between a Deaf patient and medical staff in real time. In sign language the face is part of the grammar: raised brows turn a statement into a yes/no question, a head shake turns it into a denial. Synapse reads eyebrows, squint and head movement along with the hands, so a question stays a question and a denial stays a denial.
+
+Signs become a clean clinical sentence that is spoken to the doctor and filed as chart data. The doctor's reply goes back to the patient as plain-language text and icons. Video never leaves the device. The whole conversation is logged in Tiger Data (Postgres + TimescaleDB) for review at charting time.
+
+This is a hackathon project (about 36 hours). The full plan, a clickable prototype, the schema, the task list and the demo script live in the project artifact: https://claude.ai/artifact/4wQskwmT2C7UvuXct6xFtE
+
+## How it works
+
+1. **Sign recognition (on device).** MediaPipe Tasks Vision `HandLandmarker` and `FaceLandmarker` run in the browser. Hand landmarks are normalized (subtract the wrist position, divide by hand size) and split into segments by hand speed. Each segment is matched against recorded templates with DTW + k-NN. The vocabulary is about 30 isolated clinical ASL signs, about 20 takes each, stored as landmark JSON only, never video.
+2. **Facial grammar engine (on device).** This is the core feature. A neutral-face calibration stores a baseline for each patient. Over each clause window, `browInnerUp`/`browOuterUp`/`browDown`/`eyeSquint` blendshapes and head yaw/pitch are mapped to one of four flags: `statement`, `question` (brows raised for more than ~300 ms), `negation` (2 or more yaw reversals) or `intensified` (furrow or squint). The rules are plain TypeScript, not a model.
+3. **Clinical sentence processor.** A phrase table keyed by complaint fills a sentence template for each flag. An optional Claude Haiku rewrite works on redacted text only and falls back to the template after 1 s. Output is spoken with `speechSynthesis` and saved as structured fields. Any meaning that depends on a facial marker is flagged for the clinician to confirm.
+4. **Clinician reply.** Typed replies (in-browser Whisper dictation is a stretch goal) are rewritten in plain language and matched to icons. A reply ending in `?` shows large YES/NO buttons, and the patient's tap is logged.
+5. **Body map.** An SVG front/back view with 21 zones and severity 0–10. Each change becomes a `pain_readings` row.
+6. **Chart review (Tiger Data).** Two hypertables (`utterances`, `pain_readings`) partitioned by time and segmented by encounter, plus a continuous aggregate for the pain trend. The review screen replays an encounter, lets the clinician verify flagged lines and drafts a chart note with unverified lines labelled.
+
+## Stack
+
+React + Vite + TypeScript (or Next.js), with routes for **patient**, **clinician** and **review**. A Node API (Hono or Fastify, `pg`, one WebSocket room per encounter) validates and relays events. Tiger Cloud is set up with the Tiger CLI or Tiger MCP. The frontend is deployed on Vercel/Netlify and the API on Render/Fly (HTTPS is required for the camera).
+
+## Shared contracts (agree these first)
+
+- **Sign event:** label, confidence, start/end time. Wizard mode emits the same shape.
+- **Clause:** the signs in one clause plus its face/head frames, which go in to produce a grammar flag.
+- **Utterance event:** speaker, kind, gloss, markers, flag, sentence, confidence. This is text only, and it is the only thing that leaves the device.
+
+## Non-negotiables
+
+- **Privacy:** camera frames and landmarks are processed in the browser and discarded. The API rejects anything that isn't text or numbers. Patients are tokens, not names. The UI shows a live "video frames sent: 0" counter. Chrome's `SpeechRecognition` sends audio to the cloud, so don't use it outside a clearly labelled stand-in.
+- **Safety:** a wrong meaning is a clinical risk, so lines that depend on a marker need clinician confirmation before charting. Synapse does not replace qualified interpreters and is not HIPAA/PHIPA compliant.
+- **Demo resilience:** wizard mode (an operator triggers signs through the same pipeline) must work end to end before hour 8. Event writes are queued and must never block the UI.
+
+## Out of scope
+
+Continuous or open-vocabulary sign recognition, replacing interpreters, and production compliance.
