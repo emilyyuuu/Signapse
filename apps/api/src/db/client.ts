@@ -1,3 +1,4 @@
+import { existsSync, readFileSync } from "node:fs";
 import pg from "pg";
 import {
   DEMO_ENCOUNTER_ID,
@@ -24,8 +25,20 @@ export function createStore(databaseUrl: string | undefined): Store {
   return databaseUrl ? tigerStore(databaseUrl) : memoryStore();
 }
 
+// Tiger Cloud signs its servers with its own CA (ca.timescale.com), which Node
+// doesn't trust by default. Verify against that CA instead of turning checks off.
+const TIMESCALE_CA = new URL("../../../../db/certs/timescale-ca.pem", import.meta.url);
+
+export function pgConfig(connectionString: string): pg.ClientConfig {
+  if (!connectionString.includes(".timescale.com") || !existsSync(TIMESCALE_CA)) return { connectionString };
+  // sslmode in the URL would override the ssl option below, so drop it.
+  const url = new URL(connectionString);
+  url.searchParams.delete("sslmode");
+  return { connectionString: url.toString(), ssl: { ca: readFileSync(TIMESCALE_CA, "utf8") } };
+}
+
 function tigerStore(connectionString: string): Store {
-  const pool = new pg.Pool({ connectionString, max: 5 });
+  const pool = new pg.Pool({ ...pgConfig(connectionString), max: 5 });
 
   const toEncounter = (r: any): Encounter => ({
     encounterId: r.encounter_id,
