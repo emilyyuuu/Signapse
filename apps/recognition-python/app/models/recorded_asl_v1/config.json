@@ -1,0 +1,33 @@
+{
+  "model_version": "1.0",
+  "algorithm": "dtw_knn",
+  "landmarks_per_hand": 21,
+  "hands": [
+    "left_hand",
+    "right_hand"
+  ],
+  "dimensions": 3,
+  "normalization": "wrist_relative_per_hand",
+  "template_count": 24,
+  "supported_signs": [
+    "chest",
+    "face",
+    "fever",
+    "headache",
+    "jaw",
+    "nausea",
+    "pain",
+    "stomach"
+  ],
+  "recordings_per_sign": {
+    "chest": 5,
+    "face": 2,
+    "fever": 3,
+    "headache": 3,
+    "jaw": 3,
+    "nausea": 2,
+    "pain": 3,
+    "stomach": 3
+  },
+  "training_source": "recorder/recordings/labels.csv"
+}
