@@ -1,4 +1,5 @@
-"""Webcam loop with the MediaPipe Pose and Hand Landmarkers. Frames stay in this process."""
+"""Webcam loop with the MediaPipe Pose, Hand and (for facial grammar) Face Landmarkers.
+Frames stay in this process."""
 
 from __future__ import annotations
 
@@ -7,12 +8,15 @@ import threading
 import time
 from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import nullcontext
 from pathlib import Path
 
 import cv2
 import mediapipe as mp
 from mediapipe.tasks.python import BaseOptions
 from mediapipe.tasks.python.vision import (
+    FaceLandmarker,
+    FaceLandmarkerOptions,
     HandLandmarker,
     HandLandmarkerOptions,
     PoseLandmarker,
@@ -22,7 +26,7 @@ from mediapipe.tasks.python.vision import (
 
 from .datatypes import BodyFrame
 from .features import extract_body
-from .paths import HAND_MODEL, POSE_MODEL
+from .paths import FACE_MODEL, HAND_MODEL, POSE_MODEL
 
 
 def _require(model_path: Path) -> None:
@@ -48,6 +52,19 @@ def open_pose_landmarker(model_path: Path = POSE_MODEL) -> PoseLandmarker:
         num_poses=1,
     )
     return PoseLandmarker.create_from_options(options)
+
+
+def open_face_landmarker(model_path: Path = FACE_MODEL) -> FaceLandmarker:
+    """Blendshapes and head pose for facial grammar (apps/facial_grammar/features.py)."""
+    _require(model_path)
+    options = FaceLandmarkerOptions(
+        base_options=BaseOptions(model_asset_path=str(model_path)),
+        running_mode=RunningMode.VIDEO,
+        num_faces=1,
+        output_face_blendshapes=True,
+        output_facial_transformation_matrixes=True,
+    )
+    return FaceLandmarker.create_from_options(options)
 
 
 class _LatestFrame(threading.Thread):
@@ -113,12 +130,21 @@ def frames(
     pose_every: int = 2,
     size: tuple[int, int] = (640, 480),
     on_raw: Callable | None = None,
+    on_hands: Callable | None = None,
+    on_face: Callable | None = None,
 ) -> Iterator[tuple["cv2.typing.MatLike", BodyFrame | None, float]]:
     """Yield (display_bgr, body_frame_or_none, t_ms) for each camera frame.
 
     Pose and hands run on the un-mirrored image so "left" is the patient's own left.
     Only the display image is mirrored. For speed the body barely moves between frames, so
     pose runs every ``pose_every`` frames and hands, which move fast, run on every frame.
+    ``on_hands(hand_result, t_ms)`` gets every hand result, with or without a body (signing).
+    ``on_face(face_result, t_ms)`` gets face results, if the face model is there (facial
+    grammar). The face runs on the frames where pose doesn't, on the same worker thread.
+
+    Never more than two models run at once (hands here, plus pose or face on the worker):
+    with MediaPipe 1.1 three landmarkers detecting at the same moment can deadlock inside
+    MediaPipe, which froze tracking while the picture kept moving.
     """
     cap = _open_camera(camera)
     if not cap.isOpened():
@@ -129,7 +155,10 @@ def frames(
     cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # always the newest frame, not a queued old one
     cap.set(cv2.CAP_PROP_FPS, 30)
     reader = _LatestFrame(cap, on_raw)
-    pool = ThreadPoolExecutor(max_workers=1)  # runs the pose model while hands run here
+    pool = ThreadPoolExecutor(max_workers=1)  # runs pose or face while hands run here
+    use_face = on_face is not None and FACE_MODEL.exists()
+    if on_face is not None and not use_face:
+        print(f"Facial grammar off: {FACE_MODEL.name} not found. Run scripts/fetch_models.sh.")
     reader.start()
     t0 = time.monotonic()
     last_ms = -1
@@ -137,7 +166,8 @@ def frames(
     seq = 0
     pose_result = None
     try:
-        with open_pose_landmarker() as pose, open_hand_landmarker() as hands:
+        face_ctx = open_face_landmarker() if use_face else nullcontext(None)
+        with open_pose_landmarker() as pose, open_hand_landmarker() as hands, face_ctx as face:
             while True:
                 raw, seq = reader.next(seq)
                 if raw is None or reader.failed:
@@ -147,16 +177,25 @@ def frames(
                 last_ms = t_ms
                 h, w = raw.shape[:2]
                 img = mp.Image(image_format=mp.ImageFormat.SRGB, data=cv2.cvtColor(raw, cv2.COLOR_BGR2RGB))
-                pose_job = None
+                pose_job = face_job = None
                 if pose_result is None or n % pose_every == 0:
                     pose_job = pool.submit(pose.detect_for_video, img, t_ms)
+                elif face is not None:
+                    face_job = pool.submit(face.detect_for_video, img, t_ms)
                 n += 1
                 hand_result = hands.detect_for_video(img, t_ms)
+                if on_hands:
+                    on_hands(hand_result, t_ms)
                 if pose_job is not None:
                     pose_result = pose_job.result()
+                if face_job is not None:
+                    try:
+                        on_face(face_job.result(), t_ms)
+                    except Exception as e:  # facial grammar must never stop the camera
+                        print(f"Face reading failed: {e}", file=sys.stderr)
                 body = extract_body(pose_result, hand_result, t_ms, w / h)
                 yield (cv2.flip(raw, 1) if mirror else raw), body, float(t_ms)
     finally:
         reader.stop()
-        pool.shutdown(wait=False)
+        pool.shutdown(wait=True)  # models must finish before they are closed
         cap.release()

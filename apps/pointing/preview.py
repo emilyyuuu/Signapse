@@ -5,13 +5,21 @@ can show the camera without a separate window. Video never leaves this computer:
 stream is bound to the loopback address, and only zone ids go to the Signapse API.
 
   GET /video   multipart MJPEG stream (use as an <img> source)
-  GET /status  {"running": true}  (the page polls this to show camera on/off)
+  GET /status  {"running": true, "signs": {...}}  (camera on/off and the signing session)
+  POST /sign   {"action": "start" | "done" | "cancel"}  (the patient's signing buttons)
+  POST /record {"action": "start", "sign": "pain"} | {"action": "cancel"}  (staff: new examples)
+  POST /rebuild  (staff: retrain the recorded-sign model from the examples)
+
+POST is accepted only from the Signapse web page's own origin (CORS_ORIGIN), so another
+website open in the browser can't start or send signing.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import cv2
@@ -24,13 +32,22 @@ class _QuietServer(ThreadingHTTPServer):
         pass
 
 
+def _allowed_origins() -> set[str]:
+    raw = os.environ.get("CORS_ORIGIN") or ""
+    found = {o.strip().rstrip("/") for o in raw.split(",") if o.strip()}
+    return found | {"http://localhost:5173", "http://127.0.0.1:5173"}
+
+
 BOUNDARY = "frame"
 MAX_WIDTH = 640  # the page shows it small; keeps encoding cheap
 
 
 class Preview:
-    def __init__(self, port: int) -> None:
+    def __init__(self, port: int, signs=None, recorder=None) -> None:
         self.port = port
+        self.signs = signs  # SignSession, or None when there is no sign recognition
+        self.recorder = recorder  # Recorder for new sign examples, or None
+        self.tracked_at = 0.0  # time.monotonic() of the last tracked frame, set by the camera loop
         self._cond = threading.Condition()
         self._jpeg: bytes | None = None
         self._seq = 0
@@ -54,18 +71,66 @@ class Preview:
                 self.send_header("Cross-Origin-Resource-Policy", "cross-origin")
                 self.send_header("Access-Control-Allow-Private-Network", "true")
 
+            def _json(self, status: int, data: dict) -> None:
+                body = json.dumps(data).encode()
+                self._headers(status, "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
             def do_OPTIONS(self) -> None:
                 self._headers(204, "text/plain")
+                self.send_header("Access-Control-Allow-Methods", "GET, POST")
+                self.send_header("Access-Control-Allow-Headers", "Content-Type")
                 self.end_headers()
+
+            def do_POST(self) -> None:
+                path = self.path.split("?")[0]
+                if path not in ("/sign", "/record", "/rebuild"):
+                    return self._json(404, {"error": "not found"})
+                origin = (self.headers.get("Origin") or "").rstrip("/")
+                if origin and origin not in _allowed_origins():
+                    return self._json(403, {"error": "This page may not control the camera."})
+                try:
+                    length = min(int(self.headers.get("Content-Length") or 0), 1024)
+                    body = json.loads(self.rfile.read(length) or b"{}")
+                    action = body.get("action")
+                except (ValueError, AttributeError):
+                    body, action = {}, None
+                if path == "/sign":
+                    if preview.signs is None:
+                        return self._json(503, {"error": "Sign recognition is not running."})
+                    handlers = {"start": preview.signs.start, "done": preview.signs.finish, "cancel": preview.signs.cancel}
+                    if action not in handlers:
+                        return self._json(400, {"error": "action must be start, done or cancel"})
+                    result = handlers[action]()
+                else:
+                    rec = preview.recorder
+                    if rec is None:
+                        return self._json(503, {"error": "Recording is not available."})
+                    if path == "/rebuild":
+                        result = rec.rebuild()
+                    elif action == "start":
+                        if preview.signs is not None and preview.signs.is_open:
+                            return self._json(409, {"ok": False, "error": "The patient is signing right now."})
+                        result = rec.start(str(body.get("sign") or ""))
+                    elif action == "cancel":
+                        result = rec.cancel()
+                    else:
+                        return self._json(400, {"error": "action must be start or cancel"})
+                self._json(200 if result.get("ok") else 409, result)
 
             def do_GET(self) -> None:
                 path = self.path.split("?")[0]
                 if path == "/status":
-                    body = json.dumps({"running": True}).encode()
-                    self._headers(200, "application/json")
-                    self.send_header("Content-Length", str(len(body)))
-                    self.end_headers()
-                    self.wfile.write(body)
+                    status: dict = {"running": True}
+                    if preview.tracked_at:
+                        status["trackedMsAgo"] = round((time.monotonic() - preview.tracked_at) * 1000)
+                    if preview.signs is not None:
+                        status["signs"] = preview.signs.status()
+                    if preview.recorder is not None:
+                        status["record"] = preview.recorder.status()
+                    self._json(200, status)
                 elif path == "/video":
                     self._headers(200, f"multipart/x-mixed-replace; boundary={BOUNDARY}")
                     self.end_headers()

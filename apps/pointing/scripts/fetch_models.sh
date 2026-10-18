@@ -11,4 +11,6 @@ fetch() {
 }
 fetch hand_landmarker.task hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task
 fetch pose_landmarker_lite.task pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task
+# Facial grammar (apps/facial_grammar) runs in the same camera loop while the patient signs.
+fetch face_landmarker.task face_landmarker/face_landmarker/float16/1/face_landmarker.task
 echo "Models in $dir"

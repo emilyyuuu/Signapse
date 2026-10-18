@@ -8,12 +8,13 @@
   ],
   "dimensions": 3,
   "normalization": "wrist_relative_per_hand",
-  "template_count": 24,
+  "template_count": 51,
   "supported_signs": [
     "chest",
     "face",
     "fever",
     "headache",
+    "heartattack",
     "jaw",
     "nausea",
     "pain",
@@ -22,12 +23,13 @@
   "recordings_per_sign": {
     "chest": 5,
     "face": 2,
-    "fever": 3,
-    "headache": 3,
-    "jaw": 3,
-    "nausea": 2,
-    "pain": 3,
-    "stomach": 3
+    "fever": 6,
+    "headache": 7,
+    "heartattack": 6,
+    "jaw": 7,
+    "nausea": 5,
+    "pain": 7,
+    "stomach": 6
   },
   "training_source": "recorder/recordings/labels.csv"
 }

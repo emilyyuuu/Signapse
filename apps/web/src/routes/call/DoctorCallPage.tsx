@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { assessUtterance, type Encounter, type StoredUtterance } from "@signapse/shared";
+import { assessUtterance, spokenParts, type Encounter, type StoredUtterance } from "@signapse/shared";
 import { encounterIdFromUrl, getEncounter, postUtterance, verifyUtterance } from "../../lib/api";
 import { useCall } from "../../lib/useCall";
 import { speak, speechSupported, unlockVoice } from "../../language/speak";
@@ -147,11 +147,9 @@ function DoctorCall({
 
   // Reads a patient sentence aloud, without captioning it as the doctor's words.
   const readAloud = (u: StoredUtterance) => {
-    const { urgent, needsConfirm } = assessUtterance(u);
-    const text = needsConfirm ? `${u.sentence} Please confirm with the patient.` : u.sentence;
     listener.current?.pause();
-    const wait = urgent ? chime() : 0;
-    setTimeout(() => speak(text, { urgent, onEnd: () => listener.current?.resume() }), wait);
+    const wait = assessUtterance(u).urgent ? chime() : 0;
+    setTimeout(() => speak(spokenParts(u), { onEnd: () => listener.current?.resume() }), wait);
   };
 
   const call = useCall({

@@ -139,6 +139,7 @@ a:hover { text-decoration: underline; }
 .chip.confirm { background: var(--amber-soft); color: var(--amber); }
 .chip.ok { background: var(--green-soft); color: var(--green); }
 .chip.live { background: var(--green-soft); color: var(--green); }
+.chip.tone { align-self: center; }
 
 /* Search-style input row */
 .field { display: flex; align-items: center; gap: 10px; background: var(--surface); border-radius: 999px; padding: 6px 6px 6px 18px; box-shadow: var(--shadow); }
@@ -359,7 +360,39 @@ a.icon-btn:hover { text-decoration: none; }
 .confirm-card .eyebrow { margin: 0 0 2px; }
 .confirm-zone { margin: 0 0 8px; font-size: clamp(26px, 3.4vw, 34px); font-weight: 500; letter-spacing: -0.02em; line-height: 1.15; }
 .camera-reading { margin: 10px 0 0; font-size: 14px; }
-
+/* Patient station: one question per screen, big and plain */
+.steps { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+.step { padding: clamp(20px, 3vw, 32px); animation: rise 0.3s both; }
+.step-title { margin: 6px 0 8px; font-size: clamp(32px, 4.6vw, 46px); font-weight: 600; letter-spacing: -0.02em; line-height: 1.1; color: var(--ink); }
+.step-help { margin: 0 0 18px; font-size: 20px; color: var(--ink); }
+.step-said { margin: 0; font-size: 22px; font-weight: 600; color: var(--ink); }
+.step-scale { display: flex; justify-content: space-between; margin: 12px 0 0; font-size: 18px; color: var(--ink); }
+.step .camera { box-shadow: none; padding: 0; background: transparent; }
+.severity.rate button { min-height: 64px; font-size: 26px; font-weight: 700; border: 3px solid var(--ink); }
+.where .seg { display: flex; width: fit-content; }
+.where-map { max-width: 320px; margin: 0 auto; }
+.tap-words h2 { margin: 0; font-size: 20px; font-weight: 600; }
+/* Staff: record sign examples */
+.rec-signs { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
+.rec-signs .choice { display: flex; justify-content: space-between; align-items: center; min-height: 52px; font-size: 18px; text-transform: capitalize; }
+.rec-count { font-size: 14px; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: var(--surface-2); color: var(--ink); }
+.rec-new { display: flex; gap: 8px; margin-top: 12px; }
+.rec-new .input { flex: 1; min-width: 0; }
+.rec-state { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; font-size: 20px; font-weight: 600; }
+.rec-state .rec { width: 16px; height: 16px; border-radius: 50%; background: #b91c1c; flex: none; animation: pointed 0.8s ease-in-out infinite alternate; }
+.rec-note { margin: 12px 0 0; font-weight: 600; }
+.rec-table { border-collapse: collapse; margin: 8px 0; }
+.rec-table td { padding: 4px 16px 4px 0; text-transform: capitalize; }
+.home-foot { margin: 28px 0 0; text-align: center; font-size: 14px; }
+/* Signing on the patient station: big, plain, no sound */
+.signing { margin: 14px 0 12px; padding: 16px; border-radius: var(--radius-sm); background: var(--surface-2); display: flex; flex-direction: column; gap: 12px; }
+.signing.on { background: #eef2ff; border: 3px solid #1e3a8a; }
+.signing-state { margin: 0; font-size: 24px; font-weight: 700; line-height: 1.3; color: var(--ink); display: flex; align-items: center; gap: 10px; }
+.signing-state .rec { width: 18px; height: 18px; border-radius: 50%; background: #b91c1c; flex: none; animation: pointed 0.8s ease-in-out infinite alternate; }
+.signing-words { margin: 0; display: flex; flex-wrap: wrap; gap: 8px; min-height: 40px; align-items: center; font-size: 18px; }
+.signing-note { margin: 0; font-size: 18px; font-weight: 600; color: var(--ink); }
+.signing .btn.huge.signing-start { width: 100%; flex: none; }
+.signing .draft-actions .btn.huge { flex: 1 1 0; }
 /* Call mode: the other person large, yourself small, captions over the video */
 .call-stage { position: relative; width: 100%; border-radius: var(--radius); overflow: hidden; background: #11151c; box-shadow: var(--shadow); }
 .call-remote { width: 100%; height: 100%; object-fit: contain; display: block; background: #11151c; }

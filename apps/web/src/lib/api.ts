@@ -97,6 +97,21 @@ export async function sendClause(
   }
 }
 
+// The patient tapped what they feel instead of signing it (no camera, or the
+// sign wasn't read). Same path as signing: it waits for them to check it.
+export async function tapClause(encounterId: string, gloss: string[]): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${API_URL}/clauses`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ encounterId, gloss, grammarFlag: "statement", confidence: 1 }),
+    });
+    return res.ok ? { ok: true } : { ok: false, error: "Not sent. Check the connection and tap again." };
+  } catch {
+    return { ok: false, error: "Not sent. Check the connection and tap again." };
+  }
+}
+
 // Preview only: the clinical sentence for a clause, without saving or sending it.
 export async function previewClause(
   gloss: string[],

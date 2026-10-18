@@ -45,8 +45,9 @@ describe("pointing in the gloss", () => {
   it("sentences read naturally", () => {
     expect(templateSentence(["PAIN", "POINT-CHEST"], "intensified")).toBe("The patient reports severe chest pain.");
     expect(templateSentence(["POINT-RSHOULDER"], "statement")).toBe("The patient points to the right shoulder.");
-    expect(templateSentence(["ITCH", "POINT-LHAND"], "statement")).toBe(
-      "The patient signed: ITCH, pointing to the left hand.",
+    expect(templateSentence(["ITCH", "POINT-LHAND"], "statement")).toBe("The patient reports itching at the left hand.");
+    expect(templateSentence(["BLURRY", "POINT-LHAND"], "statement")).toBe(
+      "The patient signed: BLURRY, pointing to the left hand.",
     );
   });
 
@@ -73,10 +74,12 @@ describe("finer zones", () => {
     expect(assessPriority(["PAIN", "POINT-LCHEST"], "negation")).toBe("routine");
   });
 
-  it("severe central pain uses the region", () => {
+  it("a body-map rating of 8 or more is urgent anywhere", () => {
     expect(painPriority("luq", 9)).toBe("urgent");
     expect(painPriority("forehead", 9)).toBe("urgent");
-    expect(painPriority("nose", 9)).toBe("routine");
+    expect(painPriority("nose", 9)).toBe("urgent");
+    expect(painPriority("rknee", 8)).toBe("urgent");
+    expect(painPriority("rknee", 7)).toBe("routine");
     expect(painPriority("lchest", 5)).toBe("routine");
   });
 

@@ -232,6 +232,9 @@ export function HomePage() {
           ))}
         </ul>
       )}
+      <p className="muted home-foot">
+        Staff: <a href="/record">record more sign examples</a> to teach the camera.
+      </p>
     </AppShell>
   );
 }
