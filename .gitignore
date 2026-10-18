@@ -11,6 +11,9 @@ dist/
 data/raw
 data/processed
 /apps/recognition-python/app/data/
+data/raw
+data/processed
+/apps/recognition-python/app/data/
 
 .venv/
 __pycache__/
@@ -18,4 +21,6 @@ __pycache__/
 .pytest_cache/
 apps/facial_grammar/models/
 apps/pointing/models/
+apps/sign_recognition/models/
+apps/recognition-python/recorder/
 apps/sign_recognition/models/
