@@ -1,8 +1,8 @@
-# Synapse
+# Signapse
 
 **Real-time sign-to-clinical translation for Deaf and hard-of-hearing patients.**
 
-Synapse translates between a Deaf patient and medical staff in real time. In sign language the face is part of the grammar: raised brows turn a statement into a yes/no question, a head shake turns it into a denial. Synapse reads eyebrows, squint and head movement along with the hands, so a question stays a question and a denial stays a denial.
+Signapse translates between a Deaf patient and medical staff in real time. In sign language the face is part of the grammar: raised brows turn a statement into a yes/no question, a head shake turns it into a denial. Signapse reads eyebrows, squint and head movement along with the hands, so a question stays a question and a denial stays a denial.
 
 Signs become a clean clinical sentence that is spoken to the doctor and filed as chart data. The doctor's reply goes back to the patient as plain-language text and icons. Video never leaves the device. The whole conversation is logged in Tiger Data (Postgres + TimescaleDB) for review at charting time.
 
@@ -83,9 +83,10 @@ scripts/fetch_models.sh
 npm run dev:api                          # in another terminal; the screens too: npm run dev:web
 .venv/bin/python -m pointing.lab         # point or touch to send; space clause, p adds PAIN, q quit
 .venv/bin/python -m pointing.lab --dry-run   # print events instead of posting
+.venv/bin/python -m pointing.lab --no-window   # no pop-up: the camera shows on the patient web page
 ```
 
-`SYNAPSE_API_URL` (default `http://localhost:8787`) and `SYNAPSE_ENCOUNTER` (default the demo encounter) pick where events go. Pointing thresholds are `Thresholds` in `apps/pointing/datatypes.py`. The lab sends its clauses as statements; when sign recognition assembles real clauses it adds `PointingEvent.to_sign_event()` to the signs and takes the flag from facial grammar. Pose and hands run on the un-mirrored frame, so `lshoulder` is the patient's own left. Back zones come from the `BACK` sign (`BACK POINT-LLQ` = left lower back), since a hand behind the body can't be seen. Face parts use the pose model's eye, nose and mouth points, kept from the last 1.5 s when the hand covers the face. On the sternum the chest resolves to `chest` (both halves) rather than guessing a side; `chest`, `abdomen`, `upperback` and `lowerback` are group zones that light every part.
+The lab also serves its annotated camera on `http://127.0.0.1:8765/video` (this computer only, `--preview-port`, 0 turns it off); the patient screen shows it in a **Camera** panel, so no separate window is needed (`--no-window`). Only zone ids ever go to the API. `SIGNAPSE_API_URL` (default `http://localhost:8787`) and `SIGNAPSE_ENCOUNTER` (default the demo encounter) pick where events go. Pointing thresholds are `Thresholds` in `apps/pointing/datatypes.py`. The lab sends its clauses as statements; when sign recognition assembles real clauses it adds `PointingEvent.to_sign_event()` to the signs and takes the flag from facial grammar. Pose and hands run on the un-mirrored frame, so `lshoulder` is the patient's own left. Back zones come from the `BACK` sign (`BACK POINT-LLQ` = left lower back), since a hand behind the body can't be seen. Face parts use the pose model's eye, nose and mouth points, kept from the last 1.5 s when the hand covers the face. On the sternum the chest resolves to `chest` (both halves) rather than guessing a side; `chest`, `abdomen`, `upperback` and `lowerback` are group zones that light every part.
 
 Filters against signs that touch the body (all in `tracker.py`, thresholds in `Thresholds`):
 - **Arrive, then stop.** The hand must have moved in (on screen, or back from signing space toward the body) in the 0.8 s before the hold. A hand resting on the body never counts (`resting` in the lab).
@@ -129,7 +130,7 @@ Rules the API enforces (anything else gets a 400):
 - `nmm`: up to 20 keys, each a number or short text. `GrammarResult.to_nmm()` fits as is.
 - No other fields. Never send frames or landmarks.
 
-The demo encounter id is `00000000-0000-4000-8000-000000000001`. From browser code, `sendClause` in `apps/web/src/lib/api.ts` does the same call.
+To find the visit to send to, `GET /encounters?active=true` lists open visits, newest first (the clinician starts one with **New visit**). Sends to an ended visit get a 409. The demo encounter id is `00000000-0000-4000-8000-000000000001`. The API rate-limits each client (30 Gemini-backed calls and 120 writes per minute by default), so send one clause per pause, not per frame. From browser code, `sendClause` in `apps/web/src/lib/api.ts` does the same call.
 
 To test without a camera, call the endpoint directly:
 
@@ -142,7 +143,7 @@ Pointing: the vision process POSTs `{encounterId, zone, confidence}` to `/point`
 ## Non-negotiables
 
 - **Privacy:** camera frames and landmarks are processed in the local vision process and discarded. The API rejects anything that isn't text or numbers. Patients are tokens, not names. The UI shows a live "video frames sent: 0" counter. Chrome's `SpeechRecognition` sends audio to the cloud, so don't use it outside a clearly labelled stand-in.
-- **Safety:** a wrong meaning is a clinical risk, so lines that depend on a marker need clinician confirmation before charting. Synapse does not replace qualified interpreters and is not HIPAA/PHIPA compliant.
+- **Safety:** a wrong meaning is a clinical risk, so lines that depend on a marker need clinician confirmation before charting. Signapse does not replace qualified interpreters and is not HIPAA/PHIPA compliant.
 - **Demo resilience:** wizard mode (an operator triggers signs through the same pipeline) must work end to end before hour 8. Event writes are queued and must never block the UI.
 
 ## Out of scope

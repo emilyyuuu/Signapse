@@ -1,4 +1,4 @@
-"""Pointing: the patient points at or touches their own body; Synapse resolves it to a body-map zone.
+"""Pointing: the patient points at or touches their own body; Signapse resolves it to a body-map zone.
 
 Runs on the patient laptop next to facial_grammar; video and landmarks never leave this
 process, only zone ids. The modules re-exported here are pure Python (no mediapipe or cv2),

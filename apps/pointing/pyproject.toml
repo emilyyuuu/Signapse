@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pointing"
 version = "0.1.0"
-description = "Synapse pointing: index finger on your own body to a body-map zone, on device."
+description = "Signapse pointing: index finger on your own body to a body-map zone, on device."
 requires-python = ">=3.10,<3.13"
 dependencies = [
     "mediapipe>=0.10.14",

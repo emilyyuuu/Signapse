@@ -74,6 +74,7 @@ export interface ClinicalSentence {
 // POST /translate response: which engine wrote the sentence.
 export interface TranslateResult extends ClinicalSentence {
   source: "gemini" | "template";
+  face: string; // plain-words facial summary, e.g. "head shook 3 times → denial"
 }
 
 // POST /clauses: what sign recognition sends when the patient pauses.
@@ -90,6 +91,7 @@ export interface ClauseResult {
   priority: Priority;
   needsConfirm: boolean;
   source: TranslateResult["source"];
+  face: string;
 }
 
 export interface Encounter {
@@ -103,6 +105,7 @@ export interface Encounter {
 
 // Rows as stored and returned by the API.
 export interface StoredUtterance extends UtteranceEvent {
+  id: string;
   ts: string;
   verifiedBy?: string;
   verifiedAt?: string;
@@ -126,11 +129,71 @@ export interface StoredPointEvent extends PointEvent {
   ts: string;
 }
 
+// POST /gesture: the patient nodded or shook their head (from apps/pointing). After they
+// point at a body part, a nod confirms it and opens the pain scale; a shake cancels.
+// Not stored: the confirmed pain reading is the record.
+export interface GestureEvent {
+  encounterId: string;
+  gesture: "nod" | "shake";
+  confidence?: number; // 0–1
+}
+
+export interface StoredGestureEvent extends GestureEvent {
+  ts: string;
+}
+
 // Messages pushed to every browser in an encounter's WebSocket room.
 export type RoomMessage =
   | { type: "utterance"; data: StoredUtterance }
+  | { type: "verified"; data: StoredUtterance } // a clinician confirmed an existing line
   | { type: "pain"; data: StoredPainReading }
-  | { type: "point"; data: StoredPointEvent };
+  | { type: "point"; data: StoredPointEvent }
+  | { type: "gesture"; data: StoredGestureEvent } // the patient pointed at or touched a body part
+  | { type: "ended"; data: Encounter }; // the visit was ended; screens stop accepting input
+
+// One point of the pain trend (continuous aggregate pain_by_minute).
+export interface PainTrendPoint {
+  bucket: string;
+  zone: string;
+  peak: number;
+}
+
+// GET /encounters/:id/review
+export interface ReviewData {
+  encounter: Encounter;
+  utterances: StoredUtterance[];
+  pain: StoredPainReading[];
+  painTrend: PainTrendPoint[];
+  stats: { lines: number; urgent: number; unconfirmed: number };
+}
+
+// One line of the chart note, taken straight from a stored utterance.
+export interface NoteItem {
+  id: string;
+  ts: string;
+  text: string;
+  gloss?: string[];
+  confirmed: boolean;
+  needsConfirm: boolean;
+  verifiedBy?: string;
+}
+
+// POST /encounters/:id/note. Facts come from stored data, never from the
+// language model; only aiSummary is model-written, and it is labelled so.
+export interface ChartNote {
+  encounter: Pick<Encounter, "encounterId" | "patientRef" | "clinicianId" | "startedAt" | "endedAt">;
+  generatedAt: string;
+  chiefComplaint?: string;
+  reported: NoteItem[];
+  denied: NoteItem[];
+  patientQuestions: NoteItem[];
+  clinicianReplies: NoteItem[];
+  patientAnswers: NoteItem[];
+  pain: { zone: string; label: string; peak: number; latest: number; trend: "rising" | "falling" | "steady" }[];
+  urgentFlags: NoteItem[];
+  unconfirmedCount: number;
+  aiSummary?: string;
+}
 
 // Seeded in db/seed/encounters.sql and in the API's in-memory store.
 export const DEMO_ENCOUNTER_ID = "00000000-0000-4000-8000-000000000001";

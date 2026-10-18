@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { RoomMessage } from "@synapse/shared";
+import type { RoomMessage } from "@signapse/shared";
 import { API_URL } from "./api";
 
 // Joins an encounter's live room and calls onMessage for every utterance and

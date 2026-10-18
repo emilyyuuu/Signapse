@@ -1,5 +1,5 @@
 import { BODY_VIEWS, ZONE_LABELS, ZONE_PARENT } from "./bodyZones";
-import type { ClinicalSentence, GrammarFlag, Priority } from "./types";
+import type { ClinicalSentence, GrammarFlag, Priority, StoredUtterance } from "./types";
 
 // Rule-based clinical sentences. This is the fallback when Gemini is slow or
 // offline, and the source of truth for priority and confirmation, which never
@@ -93,11 +93,27 @@ export function painPriority(zone: string, severity: number): Priority {
   return severity >= SEVERE_PAIN && isCentral(zone) ? "urgent" : "routine";
 }
 
-function severe(complaint: string) {
-  return complaint.startsWith("a ") ? `a severe ${complaint.slice(2)}` : `severe ${complaint}`;
+function intensify(complaint: string, word: string) {
+  return complaint.startsWith("a ") ? `a ${word} ${complaint.slice(2)}` : `${word} ${complaint}`;
 }
 
-export function templateSentence(gloss: string[], flag: GrammarFlag): string {
+// faceStrong: whether the facial markers were strong. Undefined (no face scores)
+// keeps the stronger wording, so emphasis is never understated.
+// A pain level signed as a number, 0 to 10. Sign recognition sends the label NUM-<n>
+// (NUM-0 ... NUM-10); the patient can instead tap a number on the pain scale.
+export function signedLevel(gloss: string[]): number | undefined {
+  for (const g of gloss) {
+    const m = /^NUM-([0-9]{1,2})$/.exec(g);
+    if (m && Number(m[1]) <= 10) return Number(m[1]);
+  }
+  return undefined;
+}
+
+export function templateSentence(gloss: string[], flag: GrammarFlag, faceStrong?: boolean): string {
+  const level = signedLevel(gloss);
+  if (level !== undefined && !complaintOf(gloss).complaint) {
+    return `The patient rates the pain ${level} out of 10.`;
+  }
   if (gloss.length === 1 && (gloss[0] === "YES" || gloss[0] === "NO")) {
     return `The patient answers ${gloss[0].toLowerCase()}.`;
   }
@@ -115,7 +131,7 @@ export function templateSentence(gloss: string[], flag: GrammarFlag): string {
     case "negation":
       return `The patient denies ${complaint}.`;
     case "intensified":
-      return `The patient reports ${severe(complaint)}.`;
+      return `The patient reports ${intensify(complaint, faceStrong === false ? "significant" : "severe")}.`;
     default:
       return `The patient reports ${complaint}.`;
   }
@@ -130,18 +146,36 @@ export function assessPriority(gloss: string[], flag: GrammarFlag): Priority {
   return redFlag || severeCentralPain ? "urgent" : "routine";
 }
 
+// Urgency and confirmation for a stored line, shared by the clinician screen,
+// the review screen and the chart note so they always agree.
+export function assessUtterance(u: StoredUtterance) {
+  const signed = u.speaker === "patient" && u.kind === "sign" && !!u.gloss && !!u.grammarFlag;
+  const needsConfirm = signed ? needsConfirmation(u.grammarFlag, u.confidence) : false;
+  return {
+    urgent: signed ? assessPriority(u.gloss!, u.grammarFlag!) === "urgent" : false,
+    needsConfirm,
+    confirmed: !!u.verifiedBy,
+    unconfirmed: needsConfirm && !u.verifiedBy,
+  };
+}
+
+// A misread facial marker flips the meaning, so the clinician confirms it.
+export function needsConfirmation(flag: GrammarFlag | undefined, confidence?: number) {
+  return (flag !== undefined && flag !== "statement") || (confidence ?? 1) < 0.7;
+}
+
 export function buildClinicalSentence(
   gloss: string[],
   flag: GrammarFlag,
   confidence?: number,
+  faceStrong?: boolean,
 ): ClinicalSentence {
   const { complaint, zone } = complaintOf(gloss);
   return {
-    sentence: templateSentence(gloss, flag),
+    sentence: templateSentence(gloss, flag, faceStrong),
     complaint,
     zone,
     priority: assessPriority(gloss, flag),
-    // A misread facial marker flips the meaning, so the clinician confirms it.
-    needsConfirm: flag !== "statement" || (confidence ?? 1) < 0.7,
+    needsConfirm: needsConfirmation(flag, confidence),
   };
 }

@@ -6,6 +6,7 @@ import {
   painPriority,
   pointGloss,
   pointedZone,
+  signedLevel,
   templateSentence,
   viewOf,
   zoneCovers,
@@ -92,5 +93,24 @@ describe("body map coverage", () => {
     expect(viewOf("chest")).toBe("front");
     expect(viewOf("lowerback")).toBe("back");
     expect(viewOf("lknee")).toBe("front");
+  });
+});
+
+describe("signed pain level", () => {
+  it("reads NUM-0 to NUM-10 and nothing else", () => {
+    expect(signedLevel(["NUM-0"])).toBe(0);
+    expect(signedLevel(["NUM-7"])).toBe(7);
+    expect(signedLevel(["NUM-10"])).toBe(10);
+    expect(signedLevel(["PAIN", "NUM-3"])).toBe(3);
+    expect(signedLevel(["NUM-11"])).toBeUndefined();
+    expect(signedLevel(["NUM-"])).toBeUndefined();
+    expect(signedLevel(["NUMBER-7"])).toBeUndefined();
+    expect(signedLevel(["PAIN", "CHEST"])).toBeUndefined();
+  });
+
+  it("writes a plain sentence for a lone number", () => {
+    expect(templateSentence(["NUM-7"], "statement")).toBe("The patient rates the pain 7 out of 10.");
+    // A real complaint keeps its normal sentence.
+    expect(templateSentence(["PAIN", "CHEST", "NUM-7"], "statement")).toMatch(/chest pain/);
   });
 });

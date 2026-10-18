@@ -1,6 +1,6 @@
 import type { IncomingMessage, Server } from "node:http";
 import { WebSocketServer, type WebSocket } from "ws";
-import type { RoomMessage } from "@synapse/shared";
+import type { RoomMessage } from "@signapse/shared";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

@@ -1,4 +1,4 @@
-"""Sends text-only events to the Synapse API. Standard library only.
+"""Sends text-only events to the Signapse API. Standard library only.
 
 Posts run on one background thread, in order, so the camera loop never waits on the
 network. Only zone ids, sign labels, flags and marker scores are sent; never frames
@@ -19,8 +19,8 @@ DEMO_ENCOUNTER_ID = "00000000-0000-4000-8000-000000000001"
 
 class ApiClient:
     def __init__(self, api_url: str | None = None, encounter_id: str | None = None, dry_run: bool = False) -> None:
-        self.api_url = (api_url or os.environ.get("SYNAPSE_API_URL") or "http://localhost:8787").rstrip("/")
-        self.encounter_id = encounter_id or os.environ.get("SYNAPSE_ENCOUNTER") or DEMO_ENCOUNTER_ID
+        self.api_url = (api_url or os.environ.get("SIGNAPSE_API_URL") or "http://localhost:8787").rstrip("/")
+        self.encounter_id = encounter_id or os.environ.get("SIGNAPSE_ENCOUNTER") or DEMO_ENCOUNTER_ID
         self.dry_run = dry_run
         self._q: queue.Queue[tuple[str, dict]] = queue.Queue()
         threading.Thread(target=self._worker, daemon=True).start()
@@ -46,6 +46,13 @@ class ApiClient:
     def post_point(self, zone: str, confidence: float, gesture: str = "point") -> None:
         body = {"encounterId": self.encounter_id, "zone": zone, "confidence": confidence, "gesture": gesture}
         self._q.put(("/point", body))
+
+    def post_gesture(self, gesture: str, confidence: float | None = None) -> None:
+        """gesture is "nod" (confirm the pointed body part) or "shake" (cancel it)."""
+        body: dict = {"encounterId": self.encounter_id, "gesture": gesture}
+        if confidence is not None:
+            body["confidence"] = round(confidence, 3)
+        self._q.put(("/gesture", body))
 
     def post_clause(
         self,
