@@ -3,13 +3,15 @@ import type { CallRole, ClientRoomMessage, RoomMessage } from "@signapse/shared"
 import { API_URL } from "./api";
 
 // Joins an encounter's live room and calls onMessage for every utterance and
-// pain reading. Reconnects automatically if the connection drops. Call screens
-// pass their role so they can send call setup messages with send().
+// pain reading. Reconnects automatically if the connection drops. Patient
+// screens pass role "patient" to also get their unsent drafts. Call screens
+// pass their call role so they can send call setup messages with send().
 export function useRoom(
   encounterId: string,
   onMessage: (msg: RoomMessage) => void,
-  opts: { call?: CallRole; onOpen?: () => void } = {},
+  opts: { role?: "patient" | "clinician"; call?: CallRole; onOpen?: () => void } = {},
 ) {
+  const role = opts.role ?? (opts.call === "patient" ? "patient" : "clinician");
   const [connected, setConnected] = useState(false);
   const handler = useRef(onMessage);
   handler.current = onMessage;
@@ -24,7 +26,7 @@ export function useRoom(
 
     const connect = () => {
       const call = opts.call ? `&call=${opts.call}` : "";
-      ws = new WebSocket(`${API_URL.replace(/^http/, "ws")}/ws?encounter=${encounterId}${call}`);
+      ws = new WebSocket(`${API_URL.replace(/^http/, "ws")}/ws?encounter=${encounterId}&role=${role}${call}`);
       socket.current = ws;
       ws.onopen = () => {
         setConnected(true);
@@ -42,7 +44,7 @@ export function useRoom(
       clearTimeout(retry);
       ws.close();
     };
-  }, [encounterId, opts.call]);
+  }, [encounterId, role, opts.call]);
 
   const send = useCallback((msg: ClientRoomMessage) => {
     const ws = socket.current;

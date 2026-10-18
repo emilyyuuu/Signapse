@@ -211,7 +211,7 @@ function DoctorCall({
   };
 
   const confirm = async (id: string) => {
-    const row = await verifyUtterance(id, encounter?.clinicianId ?? "doctor");
+    const row = await verifyUtterance(id);
     if (row) setLines((prev) => mergeLines(prev, [row]));
     return !!row;
   };

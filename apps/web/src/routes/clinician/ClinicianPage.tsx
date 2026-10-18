@@ -13,6 +13,7 @@ import { useRoom } from "../../lib/useRoom";
 import { AppShell } from "../../components/AppShell";
 import { EmptyArt, Icon } from "../../components/brand";
 import { PageHeader } from "../../components/PageHeader";
+import { NameEditor } from "../../components/visit/NameEditor";
 import { PainMapPanel } from "../../components/bodymap/PainMapPanel";
 import { usePainMap } from "../../components/bodymap/usePainMap";
 import { usePointing } from "../../components/bodymap/usePointing";
@@ -47,7 +48,15 @@ export function ClinicianPage() {
 
   const { connected } = useRoom(encounterId, (msg) => {
     handlePoint(msg);
-    if (msg.type === "point" || msg.type === "gesture" || msg.type === "signal") return; // patient-screen only
+    // Patient-screen and call messages. The server never sends drafts here; this guards against it anyway.
+    if (
+      msg.type === "point" ||
+      msg.type === "gesture" ||
+      msg.type === "signal" ||
+      msg.type === "draft" ||
+      msg.type === "draft_closed"
+    )
+      return;
     if (msg.type === "pain") {
       apply(msg.data);
       return;
