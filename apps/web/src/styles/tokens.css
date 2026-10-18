@@ -470,3 +470,24 @@ body:has(.call-layout) .shell-in { max-width: 1360px; }
 .checkin-input { width: 100%; min-height: 76px; padding: 12px 20px; border: 3px solid var(--ink); border-radius: var(--radius-sm); background: #fff; color: var(--ink); font: inherit; font-size: 32px; }
 .checkin-input:focus { outline: 4px solid color-mix(in srgb, var(--blue) 45%, transparent); outline-offset: 2px; }
 .name-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 10px 0 0; font-size: 16px; color: var(--ink); }
+
+/* Wizard mode (operator panel) */
+.wiz { align-items: stretch; }
+.wiz-col { flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 18px; }
+.wiz-hint { font-size: 13px; margin: 0 0 10px; }
+.wiz-presets, .wiz-palette { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 12px; }
+.wiz-palette .wiz-hint { margin: 0 4px 0 0; }
+.wiz-clause { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-height: 44px; padding: 8px; margin-bottom: 12px; border-radius: var(--radius-sm); background: var(--surface-2); }
+.wiz-chip { display: inline-flex; align-items: center; gap: 2px; background: var(--surface); border-radius: 999px; padding: 3px 4px 3px 10px; box-shadow: var(--shadow); }
+.wiz-chip code { font-family: var(--font-mono); font-size: 13px; }
+.wiz-chip button { border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 15px; line-height: 1; padding: 2px 6px; border-radius: 999px; }
+.wiz-chip button:hover { color: var(--ink); background: var(--surface-2); }
+.wiz-flags { flex-wrap: wrap; margin-bottom: 12px; }
+.wiz-field { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 14px; }
+.wiz-field input[type="range"] { flex: 1; }
+.wiz-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0; }
+.wiz-error { color: var(--signal); }
+.wiz-label { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; margin: 10px 0 2px; }
+.wiz-sentence { font-size: 20px; font-weight: 500; letter-spacing: -0.01em; margin: 0 0 8px; }
+.wiz-map { max-width: 220px; margin: 12px auto 4px; }
+.wiz-event { font-size: 14px; }
