@@ -48,6 +48,7 @@ class Preview:
         self.signs = signs  # SignSession, or None when there is no sign recognition
         self.recorder = recorder  # Recorder for new sign examples, or None
         self.tracked_at = 0.0  # time.monotonic() of the last tracked frame, set by the camera loop
+        self.polled_at = 0.0  # time.monotonic() a web page last checked /status (launcher.py idle stop)
         self._cond = threading.Condition()
         self._jpeg: bytes | None = None
         self._seq = 0
@@ -123,7 +124,11 @@ class Preview:
             def do_GET(self) -> None:
                 path = self.path.split("?")[0]
                 if path == "/status":
+                    if self.headers.get("Origin"):  # a web page, not the launcher's own check
+                        preview.polled_at = time.monotonic()
                     status: dict = {"running": True}
+                    if preview.polled_at:
+                        status["polledMsAgo"] = round((time.monotonic() - preview.polled_at) * 1000)
                     if preview.tracked_at:
                         status["trackedMsAgo"] = round((time.monotonic() - preview.tracked_at) * 1000)
                     if preview.signs is not None:

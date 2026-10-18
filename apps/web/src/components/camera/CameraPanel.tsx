@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { cameraStatus, startCamera, stopCamera } from "../../lib/api";
+import { API_URL, cameraStatus, startCamera, stopCamera } from "../../lib/api";
 import { Icon } from "../brand";
 import { SignPanel } from "./SignPanel";
 import { CAMERA_URL } from "./useSigning";
@@ -128,7 +128,8 @@ export function CameraPanel({
     setOn(false);
   };
 
-  const command = `set SIGNAPSE_ENCOUNTER=${encounterId}\n.venv\\Scripts\\python -m pointing.lab --no-window`;
+  // One-time setup: the camera helper starts at login, after which this page turns the camera on by itself.
+  const command = `.venv\\Scripts\\python -m pointing.launcher install --api ${API_URL} --origin ${location.origin}`;
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(command);
@@ -203,7 +204,8 @@ export function CameraPanel({
           {manual && (
             <>
               <p className="muted" style={{ margin: "12px 0 6px", fontSize: 13 }}>
-                Or run this in a Command Prompt in <code>apps\pointing</code>:
+                To turn the camera on from this page, set up the camera helper once. Run this in a Command
+                Prompt in <code>apps\pointing</code>:
               </p>
               <pre className="camera-cmd">{command}</pre>
               <button className="btn small" onClick={copy}>

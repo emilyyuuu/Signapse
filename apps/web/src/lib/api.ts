@@ -213,8 +213,12 @@ export async function postPain(reading: PainReading): Promise<boolean> {
   }
 }
 
-// Starts and stops the pointing camera (apps/pointing) on the computer the API
-// runs on. Only works from that computer, and only when LOCAL_CAMERA=true.
+// Starts and stops the pointing camera (apps/pointing) on this computer. First asks the
+// camera helper (apps/pointing/launcher.py, started at login on the patient laptop); if it
+// isn't running, asks the API, which can do it only when the API runs on this computer
+// (local development with LOCAL_CAMERA=true).
+export const LAUNCHER_URL = (import.meta.env.VITE_LAUNCHER_URL ?? "http://127.0.0.1:8764").replace(/\/$/, "");
+
 export interface CameraStatus {
   available: boolean;
   running: boolean;
@@ -223,17 +227,30 @@ export interface CameraStatus {
   log: string[];
 }
 
-async function cameraCall<T>(path: string, body?: unknown): Promise<{ ok: boolean; status: number; data: T & { error?: string } }> {
+type CameraResult<T> = { ok: boolean; status: number; data: T & { error?: string } };
+
+async function cameraFetch<T>(base: string, path: string, body?: unknown): Promise<CameraResult<T> | null> {
   try {
-    const res = await fetch(`${API_URL}${path}`, {
+    const res = await fetch(`${base}${path}`, {
       method: body === undefined ? "GET" : "POST",
       headers: { "Content-Type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     return { ok: res.ok, status: res.status, data: await res.json().catch(() => ({}) as T & { error?: string }) };
   } catch {
-    return { ok: false, status: 0, data: { error: "Can't reach the server." } as T & { error?: string } };
+    return null; // not reachable
   }
+}
+
+async function cameraCall<T>(path: string, body?: unknown): Promise<CameraResult<T>> {
+  return (
+    (await cameraFetch<T>(LAUNCHER_URL, path, body)) ??
+    (await cameraFetch<T>(API_URL, path, body)) ?? {
+      ok: false,
+      status: 0,
+      data: { error: "Can't reach the server." } as T & { error?: string },
+    }
+  );
 }
 
 export const startCamera = (encounterId: string) => cameraCall<{ running?: boolean }>("/camera/start", { encounterId });
