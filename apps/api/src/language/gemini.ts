@@ -108,7 +108,7 @@ async function geminiText(
 
   try {
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${cfg.model}:generateContent`,
+      `${process.env.GEMINI_BASE_URL ?? "https://generativelanguage.googleapis.com"}/v1beta/models/${cfg.model}:generateContent`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-goog-api-key": cfg.apiKey },

@@ -5,6 +5,7 @@ import {
   type Encounter,
   type PainReading,
   type PainTrendPoint,
+  type PatientActionLog,
   type StoredPainReading,
   type StoredUtterance,
   type UtteranceEvent,
@@ -13,13 +14,17 @@ import {
 export interface Store {
   kind: "tiger" | "memory";
   getEncounter(id: string): Promise<Encounter | null>;
-  createEncounter(patientRef: string, clinicianId: string): Promise<Encounter>;
+  createEncounter(patientRef: string, clinicianId: string, patientName?: string): Promise<Encounter>;
+  // The name typed at check-in. It lives only in encounters.patient_name.
+  setPatientName(id: string, name: string): Promise<Encounter | null>;
   endEncounter(id: string): Promise<Encounter | null>;
   // Visits not yet ended, newest first, so a patient station can find one to join.
   listActiveEncounters(limit: number): Promise<Encounter[]>;
   listUtterances(encounterId: string): Promise<StoredUtterance[]>;
   listPain(encounterId: string): Promise<StoredPainReading[]>;
   insertUtterance(u: UtteranceEvent): Promise<StoredUtterance>;
+  insertPatientAction(a: PatientActionLog): Promise<void>;
+  listPatientActions(encounterId: string): Promise<PatientActionLog[]>;
   insertPain(p: PainReading): Promise<StoredPainReading>;
   // Records which clinician confirmed a line's meaning, and when.
   verifyUtterance(id: string, clinicianId: string): Promise<StoredUtterance | null>;
@@ -51,6 +56,7 @@ function tigerStore(connectionString: string): Store {
   const toEncounter = (r: any): Encounter => ({
     encounterId: r.encounter_id,
     patientRef: r.patient_ref,
+    patientName: r.patient_name ?? undefined,
     clinicianId: r.clinician_id,
     signLanguage: r.sign_language,
     startedAt: r.started_at.toISOString(),
@@ -69,6 +75,7 @@ function tigerStore(connectionString: string): Store {
     sentence: r.sentence,
     plainText: r.plain_text ?? undefined,
     confidence: r.confidence ?? undefined,
+    patientConfirmation: r.patient_confirmation ?? undefined,
     verifiedBy: r.verified_by ?? undefined,
     verifiedAt: r.verified_at?.toISOString(),
   });
@@ -87,12 +94,19 @@ function tigerStore(connectionString: string): Store {
       const { rows } = await pool.query("SELECT * FROM encounters WHERE encounter_id = $1", [id]);
       return rows[0] ? toEncounter(rows[0]) : null;
     },
-    async createEncounter(patientRef, clinicianId) {
+    async createEncounter(patientRef, clinicianId, patientName) {
       const { rows } = await pool.query(
-        "INSERT INTO encounters (patient_ref, clinician_id) VALUES ($1, $2) RETURNING *",
-        [patientRef, clinicianId],
+        "INSERT INTO encounters (patient_ref, clinician_id, patient_name) VALUES ($1, $2, $3) RETURNING *",
+        [patientRef, clinicianId, patientName ?? null],
       );
       return toEncounter(rows[0]);
+    },
+    async setPatientName(id, name) {
+      const { rows } = await pool.query(
+        "UPDATE encounters SET patient_name = $2 WHERE encounter_id = $1 RETURNING *",
+        [id, name],
+      );
+      return rows[0] ? toEncounter(rows[0]) : null;
     },
     async endEncounter(id) {
       const { rows } = await pool.query(
@@ -125,8 +139,8 @@ function tigerStore(connectionString: string): Store {
     async insertUtterance(u) {
       const { rows } = await pool.query(
         `INSERT INTO utterances
-           (encounter_id, speaker, kind, gloss, nmm, grammar_flag, sentence, plain_text, confidence)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+           (encounter_id, speaker, kind, gloss, nmm, grammar_flag, sentence, plain_text, confidence, patient_confirmation)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          RETURNING *`,
         [
           u.encounterId,
@@ -138,9 +152,30 @@ function tigerStore(connectionString: string): Store {
           u.sentence,
           u.plainText ?? null,
           u.confidence ?? null,
+          u.patientConfirmation ? JSON.stringify(u.patientConfirmation) : null,
         ],
       );
       return toUtterance(rows[0]);
+    },
+    async insertPatientAction(a) {
+      await pool.query(
+        `INSERT INTO patient_actions (encounter_id, draft_id, action, urgent, detail)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [a.encounterId, a.draftId, a.action, a.urgent, a.detail ? JSON.stringify(a.detail) : null],
+      );
+    },
+    async listPatientActions(encounterId) {
+      const { rows } = await pool.query(
+        "SELECT encounter_id, draft_id, action, urgent, detail FROM patient_actions WHERE encounter_id = $1 ORDER BY ts",
+        [encounterId],
+      );
+      return rows.map((r) => ({
+        encounterId: r.encounter_id,
+        draftId: r.draft_id,
+        action: r.action,
+        urgent: r.urgent,
+        detail: r.detail ?? undefined,
+      }));
     },
     async insertPain(p) {
       const { rows } = await pool.query(
@@ -184,21 +219,29 @@ function memoryStore(): Store {
   ]);
   const utterances: StoredUtterance[] = [];
   const pain: StoredPainReading[] = [];
+  const patientActions: PatientActionLog[] = [];
 
   return {
     kind: "memory",
     async getEncounter(id) {
       return encounters.get(id) ?? null;
     },
-    async createEncounter(patientRef, clinicianId) {
+    async createEncounter(patientRef, clinicianId, patientName) {
       const e: Encounter = {
         encounterId: crypto.randomUUID(),
         patientRef,
+        patientName,
         clinicianId,
         signLanguage: "ASL",
         startedAt: new Date().toISOString(),
       };
       encounters.set(e.encounterId, e);
+      return e;
+    },
+    async setPatientName(id, name) {
+      const e = encounters.get(id);
+      if (!e) return null;
+      e.patientName = name;
       return e;
     },
     async endEncounter(id) {
@@ -223,6 +266,12 @@ function memoryStore(): Store {
       const row = { ...u, id: crypto.randomUUID(), ts: new Date().toISOString() };
       utterances.push(row);
       return row;
+    },
+    async insertPatientAction(a) {
+      patientActions.push(a);
+    },
+    async listPatientActions(encounterId) {
+      return patientActions.filter((a) => a.encounterId === encounterId);
     },
     async insertPain(p) {
       const row = { ...p, ts: new Date().toISOString() };

@@ -4,7 +4,7 @@ import { API_URL } from "./api";
 
 // Joins an encounter's live room and calls onMessage for every utterance and
 // pain reading. Reconnects automatically if the connection drops.
-export function useRoom(encounterId: string, onMessage: (msg: RoomMessage) => void) {
+export function useRoom(encounterId: string, onMessage: (msg: RoomMessage) => void, role: "patient" | "clinician" = "clinician") {
   const [connected, setConnected] = useState(false);
   const handler = useRef(onMessage);
   handler.current = onMessage;
@@ -15,7 +15,7 @@ export function useRoom(encounterId: string, onMessage: (msg: RoomMessage) => vo
     let closed = false;
 
     const connect = () => {
-      ws = new WebSocket(`${API_URL.replace(/^http/, "ws")}/ws?encounter=${encounterId}`);
+      ws = new WebSocket(`${API_URL.replace(/^http/, "ws")}/ws?encounter=${encounterId}&role=${role}`);
       ws.onopen = () => setConnected(true);
       ws.onclose = () => {
         setConnected(false);
@@ -29,7 +29,7 @@ export function useRoom(encounterId: string, onMessage: (msg: RoomMessage) => vo
       clearTimeout(retry);
       ws.close();
     };
-  }, [encounterId]);
+  }, [encounterId, role]);
 
   return { connected };
 }

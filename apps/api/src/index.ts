@@ -9,9 +9,11 @@ import { createStore } from "./db/client.js";
 import { rateLimit } from "./rateLimit.js";
 import { eventRoutes } from "./routes/events.js";
 import { cameraRoutes } from "./routes/camera.js";
+import { draftRoutes } from "./routes/drafts.js";
 import { reviewRoutes } from "./routes/review.js";
 import { translateRoutes } from "./routes/translate.js";
-import { attachRooms } from "./ws/rooms.js";
+import { pendingView } from "./drafts.js";
+import { attachRooms, setPatientHello } from "./ws/rooms.js";
 
 config({ path: fileURLToPath(new URL("../../../.env", import.meta.url)) });
 
@@ -49,10 +51,16 @@ app.route("/", eventRoutes(store));
 app.route("/", translateRoutes(store, gemini));
 app.route("/", reviewRoutes(store, gemini));
 app.route("/", cameraRoutes(store));
+app.route("/", draftRoutes(store, gemini));
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(
     `Signapse API on :${info.port} (store: ${store.kind}, sentences: ${gemini ? gemini.model : "templates only"})`,
   );
+});
+// A patient screen that connects (or reloads) sees a draft that is already waiting.
+setPatientHello((id) => {
+  const d = pendingView(id);
+  return d ? { type: "draft", data: d } : undefined;
 });
 attachRooms(server as Server, allowedOrigins);

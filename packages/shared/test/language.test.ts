@@ -5,6 +5,14 @@ import {
   complaintOf,
   painPriority,
   pointGloss,
+  buildChartNote,
+  cleanName,
+  isAllowedSign,
+  mentionsName,
+  visitLog,
+  visitName,
+  patientFaceLine,
+  patientSentence,
   pointedZone,
   signedLevel,
   templateSentence,
@@ -112,5 +120,81 @@ describe("signed pain level", () => {
     expect(templateSentence(["NUM-7"], "statement")).toBe("The patient rates the pain 7 out of 10.");
     // A real complaint keeps its normal sentence.
     expect(templateSentence(["PAIN", "CHEST", "NUM-7"], "statement")).toMatch(/chest pain/);
+  });
+});
+
+describe("what the patient reads before sending", () => {
+  it("restates the signs in short first-person sentences", () => {
+    expect(patientSentence(["PAIN", "CHEST"], "statement")).toBe("You said: I have chest pain.");
+    expect(patientSentence(["PAIN", "CHEST"], "question")).toBe("You asked about chest pain.");
+    expect(patientSentence(["PAIN", "CHEST"], "negation")).toBe("You said no. You do not have chest pain.");
+    expect(patientSentence(["PAIN", "HEAD"], "intensified")).toBe("You said it is very bad: a headache.");
+    expect(patientSentence(["NO"], "statement")).toBe("You said no.");
+    expect(patientSentence(["NUM-7"], "statement")).toBe("You rate your pain 7 out of 10.");
+  });
+
+  it("names the body part the patient pointed at", () => {
+    expect(patientSentence(["PAIN", "POINT-LCHEST"], "statement")).toMatch(/left chest/);
+  });
+
+  it("falls back to listing the signs when nothing is understood", () => {
+    expect(patientSentence(["PAIN"], "statement")).toBe("You said: I have pain.");
+    expect(patientSentence(["WATER"], "statement")).toBe("You signed: Water.");
+  });
+
+  it("says what the face showed", () => {
+    expect(patientFaceLine("question")).toMatch(/question/);
+    expect(patientFaceLine("negation")).toMatch(/no/);
+    expect(patientFaceLine("intensified")).toMatch(/strong/);
+    expect(patientFaceLine("statement")).toMatch(/statement/);
+  });
+
+  it("only accepts known signs when the patient edits", () => {
+    expect(isAllowedSign("PAIN")).toBe(true);
+    expect(isAllowedSign("POINT-LCHEST")).toBe(true);
+    expect(isAllowedSign("NUM-7")).toBe(true);
+    expect(isAllowedSign("POINT-ELBOWISH")).toBe(false);
+    expect(isAllowedSign("NUM-11")).toBe(false);
+    expect(isAllowedSign("DROP-TABLE")).toBe(false);
+  });
+});
+
+describe("patient name", () => {
+  it("accepts real names and rejects anything that is not a name", () => {
+    expect(cleanName("  Jordan   Demo ")).toBe("Jordan Demo");
+    expect(cleanName("María-José O'Brien")).toBe("María-José O'Brien");
+    expect(cleanName("李 小龍")).toBe("李 小龍");
+    for (const bad of ["", "   ", "12345", "<b>Sam</b>", "Sam; DROP TABLE x", "A".repeat(61), "-Sam"]) {
+      expect(cleanName(bad)).toBeUndefined();
+    }
+  });
+
+  it("spots the name, or part of it, as a word in text", () => {
+    expect(mentionsName("Jordan reports chest pain", "Jordan Demo")).toBe(true);
+    expect(mentionsName("the DEMO visit", "Jordan Demo")).toBe(true);
+    expect(mentionsName("The patient reports chest pain", "Jordan Demo")).toBe(false);
+    // Part of a longer word is not the name.
+    expect(mentionsName("Sam was seen", "Sam Lee")).toBe(true);
+    expect(mentionsName("the same pain", "Sam Lee")).toBe(false);
+    expect(mentionsName("anything", undefined)).toBe(false);
+  });
+
+  it("falls back to the token when there is no name", () => {
+    expect(visitName({ patientName: "Jordan Demo", patientRef: "PT-1" })).toBe("Jordan Demo");
+    expect(visitName({ patientRef: "PT-1" })).toBe("PT-1");
+  });
+
+  it("keeps the name out of the text built for the AI summary", () => {
+    const encounter = {
+      encounterId: "e",
+      patientRef: "PT-1",
+      patientName: "Quillfeather Zephyrine",
+      clinicianId: "clinician",
+      signLanguage: "ASL",
+      startedAt: new Date().toISOString(),
+    };
+    const note = buildChartNote(encounter, [], []);
+    expect(note.encounter.patientName).toBe("Quillfeather Zephyrine"); // the note itself shows it to the clinician
+    expect(mentionsName(visitLog(note), encounter.patientName)).toBe(false); // the AI text never does
   });
 });

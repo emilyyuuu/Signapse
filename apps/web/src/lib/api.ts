@@ -25,11 +25,11 @@ export interface EncounterHistory {
   pain: StoredPainReading[];
 }
 
-export async function createEncounter(clinicianId?: string): Promise<Encounter> {
+export async function createEncounter(): Promise<Encounter> {
   const res = await fetch(`${API_URL}/encounters`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(clinicianId ? { clinicianId } : {}),
+    body: "{}",
   });
   if (!res.ok) throw new Error(`Could not start a visit (${res.status})`);
   return res.json();
@@ -89,12 +89,12 @@ export async function sendClause(
 
 // Records that a clinician confirmed a line's meaning. The server pushes the
 // updated line to every screen on the encounter.
-export async function verifyUtterance(id: string, clinicianId: string): Promise<StoredUtterance | null> {
+export async function verifyUtterance(id: string): Promise<StoredUtterance | null> {
   try {
     const res = await fetch(`${API_URL}/utterances/${id}/verify`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clinicianId }),
+      body: "{}", // clinicians are not identified yet; the server records "Clinician"
     });
     return res.ok ? res.json() : null;
   } catch {
@@ -153,3 +153,48 @@ async function cameraCall<T>(path: string, body?: unknown): Promise<{ ok: boolea
 export const startCamera = (encounterId: string) => cameraCall<{ running?: boolean }>("/camera/start", { encounterId });
 export const stopCamera = () => cameraCall<{ running?: boolean }>("/camera/stop", {});
 export const cameraStatus = () => cameraCall<CameraStatus>("/camera/status");
+
+// The patient checks what they signed before it goes to the doctor.
+async function draftCall(encounterId: string, action: string, body: object): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${API_URL}/encounters/${encounterId}/draft/${action}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) return { ok: true };
+    const data = await res.json().catch(() => ({}));
+    return { ok: false, error: typeof data.error === "string" ? data.error : "Something went wrong." };
+  } catch {
+    return { ok: false, error: "Could not reach the server. Try again." };
+  }
+}
+
+export const sendDraft = (encounterId: string, draftId: string) => draftCall(encounterId, "send", { draftId });
+export const redoDraft = (encounterId: string, draftId: string) => draftCall(encounterId, "redo", { draftId });
+export const holdDraft = (encounterId: string, draftId: string) => draftCall(encounterId, "hold", { draftId });
+export const editDraft = (
+  encounterId: string,
+  draftId: string,
+  change: { gloss?: string[]; grammarFlag?: GrammarFlag },
+) => draftCall(encounterId, "edit", { draftId, ...change });
+
+// Check-in: the patient (or staff) sets the name on the visit. The name goes in the
+// request body, never in a URL, and is not logged.
+export async function checkIn(
+  encounterId: string,
+  name: string,
+): Promise<{ ok: boolean; error?: string; encounter?: Encounter }> {
+  try {
+    const res = await fetch(`${API_URL}/encounters/${encounterId}/name`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) return { ok: true, encounter: data as Encounter };
+    return { ok: false, error: typeof data.error === "string" ? data.error : "Could not save the name." };
+  } catch {
+    return { ok: false, error: "Could not reach the server. Try again." };
+  }
+}
