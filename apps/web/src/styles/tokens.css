@@ -340,3 +340,18 @@ a.icon-btn:hover { text-decoration: none; }
 .painlist li { display: grid; grid-template-columns: minmax(0, 1fr) 90px 44px auto; gap: 10px; align-items: center; }
 .bar { height: 6px; background: var(--surface-2); border-radius: 99px; overflow: hidden; }
 .bar i { display: block; height: 100%; background: var(--signal); border-radius: 99px; }
+
+/* Pointing camera panel (the picture comes from the local Python program) */
+.camera-feed { width: 100%; max-width: 440px; margin: 0 auto; display: block; border-radius: var(--radius-sm); background: #0f1420; aspect-ratio: 4 / 3; object-fit: cover; }
+.camera-note { display: flex; align-items: center; gap: 6px; margin: 10px 0 0; font-size: 12.5px; color: var(--muted); }
+.camera-off { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 22px 12px; border-radius: var(--radius-sm); background: var(--surface-2); color: var(--muted); }
+.camera-off svg { color: var(--blue); }
+.camera-off p { margin: 0; font-size: 14px; }
+.camera-cmd { margin: 0 0 10px; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); font-family: var(--font-mono); font-size: 11.5px; line-height: 1.55; white-space: pre-wrap; word-break: break-all; color: var(--ink); }
+.camera code { font-family: var(--font-mono); font-size: 12px; background: var(--surface-2); padding: 1px 5px; border-radius: 6px; }
+
+/* Pointing confirmation: what the camera found, then nod or tap */
+.confirm-card { border: 2px solid var(--blue); animation: rise 0.3s both; }
+.confirm-card .eyebrow { margin: 0 0 2px; }
+.confirm-zone { margin: 0 0 8px; font-size: clamp(26px, 3.4vw, 34px); font-weight: 500; letter-spacing: -0.02em; line-height: 1.15; }
+.camera-reading { margin: 10px 0 0; font-size: 14px; }

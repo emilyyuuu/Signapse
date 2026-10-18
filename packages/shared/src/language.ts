@@ -99,7 +99,21 @@ function intensify(complaint: string, word: string) {
 
 // faceStrong: whether the facial markers were strong. Undefined (no face scores)
 // keeps the stronger wording, so emphasis is never understated.
+// A pain level signed as a number, 0 to 10. Sign recognition sends the label NUM-<n>
+// (NUM-0 ... NUM-10); the patient can instead tap a number on the pain scale.
+export function signedLevel(gloss: string[]): number | undefined {
+  for (const g of gloss) {
+    const m = /^NUM-([0-9]{1,2})$/.exec(g);
+    if (m && Number(m[1]) <= 10) return Number(m[1]);
+  }
+  return undefined;
+}
+
 export function templateSentence(gloss: string[], flag: GrammarFlag, faceStrong?: boolean): string {
+  const level = signedLevel(gloss);
+  if (level !== undefined && !complaintOf(gloss).complaint) {
+    return `The patient rates the pain ${level} out of 10.`;
+  }
   if (gloss.length === 1 && (gloss[0] === "YES" || gloss[0] === "NO")) {
     return `The patient answers ${gloss[0].toLowerCase()}.`;
   }

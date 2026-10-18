@@ -129,12 +129,26 @@ export interface StoredPointEvent extends PointEvent {
   ts: string;
 }
 
+// POST /gesture: the patient nodded or shook their head (from apps/pointing). After they
+// point at a body part, a nod confirms it and opens the pain scale; a shake cancels.
+// Not stored: the confirmed pain reading is the record.
+export interface GestureEvent {
+  encounterId: string;
+  gesture: "nod" | "shake";
+  confidence?: number; // 0–1
+}
+
+export interface StoredGestureEvent extends GestureEvent {
+  ts: string;
+}
+
 // Messages pushed to every browser in an encounter's WebSocket room.
 export type RoomMessage =
   | { type: "utterance"; data: StoredUtterance }
   | { type: "verified"; data: StoredUtterance } // a clinician confirmed an existing line
   | { type: "pain"; data: StoredPainReading }
-  | { type: "point"; data: StoredPointEvent } // the patient pointed at or touched a body part
+  | { type: "point"; data: StoredPointEvent }
+  | { type: "gesture"; data: StoredGestureEvent } // the patient pointed at or touched a body part
   | { type: "ended"; data: Encounter }; // the visit was ended; screens stop accepting input
 
 // One point of the pain trend (continuous aggregate pain_by_minute).

@@ -8,6 +8,7 @@ import { serve } from "@hono/node-server";
 import { createStore } from "./db/client.js";
 import { rateLimit } from "./rateLimit.js";
 import { eventRoutes } from "./routes/events.js";
+import { cameraRoutes } from "./routes/camera.js";
 import { reviewRoutes } from "./routes/review.js";
 import { translateRoutes } from "./routes/translate.js";
 import { attachRooms } from "./ws/rooms.js";
@@ -47,6 +48,7 @@ app.get("/health", (c) => c.json({ ok: true, store: store.kind }));
 app.route("/", eventRoutes(store));
 app.route("/", translateRoutes(store, gemini));
 app.route("/", reviewRoutes(store, gemini));
+app.route("/", cameraRoutes(store));
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(

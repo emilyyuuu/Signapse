@@ -14,6 +14,7 @@ Only zone ids and sign labels are sent. Use --dry-run to print instead.
 from __future__ import annotations
 
 import argparse
+import sys
 import time
 
 import cv2
@@ -21,6 +22,8 @@ import cv2
 from . import BodyFrame, Point2, PointingEvent, PointingTracker, point_label
 from .api_client import ApiClient
 from .capture import frames
+from .head import HeadGestureDetector
+from .preview import Preview
 
 WHITE, GREEN, AMBER, RED = (255, 255, 255), (100, 230, 140), (40, 200, 255), (110, 110, 255)
 SKELETON = [
@@ -64,19 +67,68 @@ def _draw_body(img, body: BodyFrame, mirror: bool) -> None:
             cv2.line(img, _px(pa, w, h, mirror), _px(pb, w, h, mirror), (200, 200, 200), 1, cv2.LINE_AA)
 
 
-def run(camera: int, dry_run: bool) -> None:
+def _no_power_throttling() -> None:
+    """Windows slows programs it thinks are in the background (no visible window) to save power,
+    which can cut this loop to a third of its speed. Ask it not to."""
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class _State(ctypes.Structure):
+            _fields_ = [("Version", wintypes.ULONG), ("ControlMask", wintypes.ULONG), ("StateMask", wintypes.ULONG)]
+
+        kernel32 = ctypes.windll.kernel32
+        kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+        state = _State(1, 1, 0)  # version 1; control "execution speed"; state off = not throttled
+        kernel32.SetProcessInformation(kernel32.GetCurrentProcess(), 4, ctypes.byref(state), ctypes.sizeof(state))
+        kernel32.SetPriorityClass(kernel32.GetCurrentProcess(), 0x00008000)  # above normal
+    except Exception:
+        pass  # a speed-up only; never fatal
+
+
+def run(camera: int, dry_run: bool, preview_port: int = 0, show_window: bool = True) -> None:
+    _no_power_throttling()
     api = ApiClient(dry_run=dry_run)
+    # Local-only MJPEG stream of the annotated camera, shown on the patient web page.
+    preview = Preview(preview_port) if preview_port else None
+    if preview and not preview.start():
+        preview = None
     tracker = PointingTracker()
+    head = HeadGestureDetector()
+    last_gesture = ""
     clause: list[str] | None = None  # sign labels while a clause is open
     last_event: PointingEvent | None = None
     status = f"Encounter {api.encounter_id}. Point at a body part and hold."
     mirror = True
     fps, last_tick = 0.0, time.monotonic()
 
-    for img, body, t_ms in frames(camera, mirror=mirror):
+    # The picture goes to the web page straight from the camera reader, at the camera's own
+    # rate, with the latest tracking drawn on top. It never waits for the models.
+    overlay: dict = {"body": None, "cand": None}
+
+    def publish(raw) -> None:
+        if preview is None or preview.viewers <= 0:
+            return
+        view = cv2.flip(raw, 1) if mirror else raw.copy()
+        h, w = view.shape[:2]
+        body, cand = overlay["body"], overlay["cand"]
+        if body is not None:
+            _draw_body(view, body, mirror)
+        if cand:
+            cv2.circle(view, _px(cand.tip, w, h, mirror), 8, GREEN if cand.progress >= 1 else AMBER, 2)
+        preview.update(view)
+
+    for img, body, t_ms in frames(camera, mirror=mirror, on_raw=publish):
         now = time.monotonic()
         fps = 0.9 * fps + 0.1 / max(now - last_tick, 1e-3)
         last_tick = now
+        gesture = head.push(body, t_ms)
+        if gesture:
+            # After pointing: a nod confirms the body part, a shake cancels it.
+            api.post_gesture(gesture.kind, gesture.confidence)
+            last_gesture = f"{gesture.kind} ({gesture.confidence:.2f})"
         event = tracker.push(body, t_ms)
         if event:
             last_event = event
@@ -93,6 +145,7 @@ def run(camera: int, dry_run: bool) -> None:
         else:
             _draw_body(img, body, mirror)
         cand = tracker.candidate
+        overlay["body"], overlay["cand"] = body, cand
         if cand:
             color = GREEN if cand.progress >= 1 else AMBER
             cv2.circle(img, _px(cand.tip, w, h, mirror), 8, color, 2)
@@ -102,6 +155,8 @@ def run(camera: int, dry_run: bool) -> None:
             y += 12
         if last_event:
             y = _text(img, f"sent: {last_event.zone} {last_event.gesture} ({last_event.confidence:.2f})", y)
+        if last_gesture:
+            y = _text(img, f"head: {last_gesture}   nod x{head.last_amplitude[0]:.2f} shake x{head.last_amplitude[1]:.2f}", y, scale=0.5)
         st = tracker.stats
         y = _text(
             img,
@@ -118,9 +173,11 @@ def run(camera: int, dry_run: bool) -> None:
         if clause is not None:
             _text(img, f"CLAUSE: {' '.join(clause) or '...'}  (space to end, p = PAIN)", h - 64, RED)
         _text(img, status, h - 32, scale=0.5)
-        cv2.imshow("Signapse pointing lab", img)
-
-        key = cv2.waitKey(1) & 0xFF
+        if show_window:
+            cv2.imshow("Signapse pointing lab", img)
+            key = cv2.waitKey(1) & 0xFF
+        else:
+            key = -1  # no window, so no keys; stop with Ctrl+C
         if key in (ord("q"), 27):
             break
         elif key == ord("p"):
@@ -140,14 +197,30 @@ def run(camera: int, dry_run: bool) -> None:
                 clause = None
 
     cv2.destroyAllWindows()
+    if preview:
+        preview.stop()
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--camera", type=int, default=0)
     parser.add_argument("--dry-run", action="store_true", help="print events instead of posting them")
+    parser.add_argument(
+        "--preview-port",
+        type=int,
+        default=8765,
+        help="serve the annotated camera on 127.0.0.1:PORT for the patient web page (0 = off)",
+    )
+    parser.add_argument(
+        "--no-window",
+        action="store_true",
+        help="no OpenCV window: the camera shows on the patient web page only (stop with Ctrl+C)",
+    )
     args = parser.parse_args()
-    run(args.camera, args.dry_run)
+    try:
+        run(args.camera, args.dry_run, args.preview_port, show_window=not args.no_window)
+    except KeyboardInterrupt:
+        pass
 
 
 if __name__ == "__main__":

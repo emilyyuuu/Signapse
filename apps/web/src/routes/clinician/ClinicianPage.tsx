@@ -48,7 +48,7 @@ export function ClinicianPage() {
 
   const { connected } = useRoom(encounterId, (msg) => {
     handlePoint(msg);
-    if (msg.type === "point") return;
+    if (msg.type === "point" || msg.type === "gesture") return; // patient-screen only
     if (msg.type === "pain") {
       apply(msg.data);
       return;

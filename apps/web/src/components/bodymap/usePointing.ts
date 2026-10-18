@@ -10,7 +10,7 @@ export interface Pointed {
   at: number;
 }
 
-const SHOW_MS = 6000;
+const SHOW_MS = 15000; // long enough to nod or shake after pointing
 
 // The zone the patient is pointing at or touching, from the camera (`point`
 // messages) or a clause with a POINT-<ZONE> sign, plus what they signed about it.

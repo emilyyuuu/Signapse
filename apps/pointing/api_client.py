@@ -47,6 +47,13 @@ class ApiClient:
         body = {"encounterId": self.encounter_id, "zone": zone, "confidence": confidence, "gesture": gesture}
         self._q.put(("/point", body))
 
+    def post_gesture(self, gesture: str, confidence: float | None = None) -> None:
+        """gesture is "nod" (confirm the pointed body part) or "shake" (cancel it)."""
+        body: dict = {"encounterId": self.encounter_id, "gesture": gesture}
+        if confidence is not None:
+            body["confidence"] = round(confidence, 3)
+        self._q.put(("/gesture", body))
+
     def post_clause(
         self,
         gloss: list[str],
