@@ -38,6 +38,7 @@ class Landmark:
     def __init__(self, model_path: Path = MODEL_PATH, num_hands: int = 2) -> None:
         self._lock = threading.Lock()
         self._result: HandLandmarkerResult | None = None
+        self._result_timestamp_ms: int | None = None
 
         options = vision.HandLandmarkerOptions(
             base_options=python.BaseOptions(model_asset_path=str(model_path)),
@@ -56,6 +57,14 @@ class Landmark:
     ) -> None:
         with self._lock:
             self._result = result
+            self._result_timestamp_ms = timestamp_ms
+
+        print(
+            "MediaPipe callback received:",
+            timestamp_ms,
+            "Hands:",
+            len(result.hand_landmarks),
+        )
 
     @staticmethod
     def convertImage(bgr: np.ndarray) -> mp.Image:
@@ -88,6 +97,92 @@ class Landmark:
                 cv.circle(out, p, 4, (0, 0, 255), -1)
 
         return out
+
+    def latest_numpy(self, after_timestamp_ms: int = -1):
+        """
+        Return (timestamp, landmarks) for a new result.
+
+        Returns None if no newer result exists.
+
+        Landmarks shape: (2, 21, 3).
+        """
+        with self._lock:
+            result = self._result
+            timestamp = self._result_timestamp_ms
+
+            if result is None or timestamp is None:
+                return None
+
+            if timestamp <= after_timestamp_ms:
+                return None
+
+            # Convert while holding the lock so the result
+            # and timestamp belong to the same detection.
+            landmarks = np.full(
+                (2, 21, 3),
+                np.nan,
+                dtype=np.float32,
+            )
+
+            for hand, handedness in zip(
+                result.hand_landmarks,
+                result.handedness,
+            ):
+                label = handedness[0].category_name
+
+                if label == "Left":
+                    hand_index = 0
+                elif label == "Right":
+                    hand_index = 1
+                else:
+                    continue
+
+                for index, point in enumerate(hand):
+                    landmarks[hand_index, index] = [
+                        point.x,
+                        point.y,
+                        point.z,
+                    ]
+
+            return timestamp, landmarks
+
+        def to_numpy(self) -> np.ndarray:
+            """
+            Convert the latest detected hands to a NumPy array.
+
+            Shape: (2, 21, 3)
+
+            Hand 0 = left
+            Hand 1 = right
+
+            Missing hands are represented by NaN.
+            """
+            landmarks = np.full(
+                (2, 21, 3),
+                np.nan,
+                dtype=np.float32,
+            )
+
+            result = self.res()
+
+            if result is None or not result.hand_landmarks:
+                return landmarks
+
+            for hand, handedness in zip(
+                result.hand_landmarks,
+                result.handedness,
+            ):
+                label = handedness[0].category_name
+
+                hand_index = 0 if label == "Left" else 1
+
+                for index, point in enumerate(hand):
+                    landmarks[hand_index, index] = [
+                        point.x,
+                        point.y,
+                        point.z,
+                    ]
+            return landmarks
 
     def close(self) -> None:
         self._landmarker.close()
