@@ -5,11 +5,17 @@ import {
   type ClauseRequest,
   type ClauseResult,
   type Encounter,
+  type GestureEvent,
   type GrammarFlag,
+  type PointEvent,
   type SignEvent,
+  type StoredGestureEvent,
+  type StoredPointEvent,
+  type TranslateResult,
   type PainReading,
   type StoredPainReading,
   type StoredUtterance,
+  type UtteranceEvent,
 } from "@signapse/shared";
 
 export const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8787";
@@ -56,12 +62,15 @@ export async function getEncounter(id: string): Promise<EncounterHistory> {
 // Called by sign recognition when the patient pauses after a clause.
 // Sends the recognised signs plus the facial-grammar flag; the server writes
 // the clinical sentence, saves it and pushes it to the clinician screen.
+// Unless direct is set, the patient checks it first: the server answers 202
+// with the draft and nothing reaches the clinician until they press Send.
 export async function sendClause(
   encounterId: string,
   signs: SignEvent[],
   grammarFlag: GrammarFlag,
   nmm?: ClauseRequest["nmm"],
-): Promise<ClauseResult | null> {
+  opts: { direct?: boolean } = {},
+): Promise<ClauseResult | { status: "waiting_for_patient" } | null> {
   if (signs.length === 0) return null;
   const body: ClauseRequest = {
     encounterId,
@@ -69,6 +78,7 @@ export async function sendClause(
     grammarFlag,
     confidence: Math.min(...signs.map((s) => s.confidence)),
     nmm,
+    ...(opts.direct ? { direct: true } : {}),
   };
   try {
     const res = await fetch(`${API_URL}/clauses`, {
@@ -83,6 +93,52 @@ export async function sendClause(
     return res.json();
   } catch (err) {
     console.warn("POST /clauses failed", err);
+    return null;
+  }
+}
+
+// Preview only: the clinical sentence for a clause, without saving or sending it.
+export async function previewClause(
+  gloss: string[],
+  grammarFlag: GrammarFlag,
+  confidence?: number,
+): Promise<TranslateResult | null> {
+  try {
+    const res = await fetch(`${API_URL}/translate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ gloss, grammarFlag, confidence }),
+    });
+    return res.ok ? res.json() : null;
+  } catch {
+    return null;
+  }
+}
+
+// What apps/pointing sends: the patient is pointing at or touching a zone, or
+// nodded or shook their head. Live only, broadcast to the room, not stored.
+export async function postPoint(p: PointEvent): Promise<StoredPointEvent | null> {
+  try {
+    const res = await fetch(`${API_URL}/point`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(p),
+    });
+    return res.ok ? res.json() : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function postGesture(g: GestureEvent): Promise<StoredGestureEvent | null> {
+  try {
+    const res = await fetch(`${API_URL}/gesture`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(g),
+    });
+    return res.ok ? res.json() : null;
+  } catch {
     return null;
   }
 }
@@ -112,6 +168,21 @@ export async function getChartNote(id: string): Promise<ChartNote> {
   const res = await fetch(`${API_URL}/encounters/${id}/note`, { method: "POST" });
   if (!res.ok) throw new Error(`POST /encounters/${id}/note failed: ${res.status}`);
   return res.json();
+}
+
+// A line that needs no translation: the doctor's spoken words, a YES/NO tap or
+// a typed message. Stored and pushed to every screen on the encounter.
+export async function postUtterance(u: UtteranceEvent): Promise<StoredUtterance | null> {
+  try {
+    const res = await fetch(`${API_URL}/events`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(u),
+    });
+    return res.ok ? res.json() : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function postPain(reading: PainReading): Promise<boolean> {

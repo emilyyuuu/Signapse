@@ -1,0 +1,7 @@
+{
+  "validation_accuracy": 0.7074829931972789,
+  "test_accuracy": 0.8230337078651685,
+  "train_count": 1018,
+  "validation_count": 294,
+  "test_count": 356
+}

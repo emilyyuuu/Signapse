@@ -6,16 +6,28 @@ import { Icon } from "../brand";
 // here asks the server on this computer to start it, then the page shows its
 // picture. The picture is served from this computer only: the video never goes
 // through the Signapse server.
-const CAMERA_URL = (import.meta.env.VITE_CAMERA_URL ?? "http://127.0.0.1:8765").replace(/\/$/, "");
+export const CAMERA_URL = (import.meta.env.VITE_CAMERA_URL ?? "http://127.0.0.1:8765").replace(/\/$/, "");
 const START_TIMEOUT_MS = 25_000;
 
-export function CameraPanel({ encounterId, lookingAt }: { encounterId: string; lookingAt?: string }) {
+export function CameraPanel({
+  encounterId,
+  lookingAt,
+  hideFeed,
+  onBeforeStart,
+}: {
+  encounterId: string;
+  lookingAt?: string;
+  hideFeed?: boolean; // the call screen shows the picture itself
+  onBeforeStart?: () => void; // e.g. free the webcam for the camera program
+}) {
   const [on, setOn] = useState(false);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string>();
   const [manual, setManual] = useState(false); // launcher unavailable: show the command instead
   const [copied, setCopied] = useState(false);
   const startedAt = useRef(0);
+  // The camera was started by hand, so we can't tell which visit it reports to.
+  const [unknownVisit, setUnknownVisit] = useState(false);
 
   // Is the camera picture available? Checked every couple of seconds.
   useEffect(() => {
@@ -48,6 +60,28 @@ export function CameraPanel({ encounterId, lookingAt }: { encounterId: string; l
     };
   }, []);
 
+  // A camera left running for another visit (say the patient station) would send
+  // this patient's pointing there. Move it to this visit.
+  useEffect(() => {
+    if (!on) return;
+    let cancelled = false;
+    void cameraStatus().then(async (s) => {
+      if (cancelled || !s.ok) return;
+      setUnknownVisit(!s.data.running);
+      if (s.data.running && s.data.encounterId !== encounterId) {
+        setStarting(true);
+        const res = await startCamera(encounterId);
+        if (!cancelled && !res.ok) {
+          setStarting(false);
+          setError(res.data.error ?? "The camera is reporting to another visit. Stop it and start it again.");
+        }
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [on, encounterId]);
+
   useEffect(() => {
     if (on) {
       startedAt.current = 0;
@@ -57,6 +91,7 @@ export function CameraPanel({ encounterId, lookingAt }: { encounterId: string; l
   }, [on]);
 
   const start = async () => {
+    onBeforeStart?.();
     setError(undefined);
     setStarting(true);
     startedAt.current = Date.now();
@@ -97,7 +132,7 @@ export function CameraPanel({ encounterId, lookingAt }: { encounterId: string; l
 
       {on ? (
         <>
-          <img className="camera-feed" src={`${CAMERA_URL}/video`} alt="Live camera with body tracking" />
+          {!hideFeed && <img className="camera-feed" src={`${CAMERA_URL}/video`} alt="Live camera with body tracking" />}
           <p className="camera-reading" aria-live="polite">
             {lookingAt ? (
               <>
@@ -108,8 +143,17 @@ export function CameraPanel({ encounterId, lookingAt }: { encounterId: string; l
             )}
           </p>
           <p className="camera-note">
-            <Icon name="lock" size={14} /> Video stays on this computer. Frames sent to the server: 0.
+            <Icon name="lock" size={14} />
+            {hideFeed
+              ? "On a call, video goes only to your doctor, encrypted. Frames sent to the server: 0."
+              : "Video stays on this computer. Frames sent to the server: 0."}
           </p>
+          {unknownVisit && (
+            <p className="muted" style={{ margin: "8px 0 0", fontSize: 12.5 }}>
+              This camera was started by hand. Pointing only reaches this visit if it was started with{" "}
+              <code>SIGNAPSE_ENCOUNTER={encounterId}</code>.
+            </p>
+          )}
           <button className="btn small" onClick={stop}>
             Stop camera
           </button>

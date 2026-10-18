@@ -1,12 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  ZONE_LABELS,
-  assessUtterance,
-  spokenParts,
-  voiceTone,
-  type Encounter,
-  type StoredUtterance,
-} from "@signapse/shared";
+import { assessUtterance, spokenParts, voiceTone, type Encounter, type StoredUtterance } from "@signapse/shared";
 import { speak, speechSupported, unlockVoice } from "../../language/speak";
 import { chime, unlockChime } from "../../language/chime";
 import {
@@ -21,8 +14,7 @@ import { AppShell } from "../../components/AppShell";
 import { EmptyArt, Icon } from "../../components/brand";
 import { PageHeader } from "../../components/PageHeader";
 import { NameEditor } from "../../components/visit/NameEditor";
-import { BodyMap } from "../../components/bodymap/BodyMap";
-import { PainList } from "../../components/bodymap/PainList";
+import { PainMapPanel } from "../../components/bodymap/PainMapPanel";
 import { usePainMap } from "../../components/bodymap/usePainMap";
 import { usePointing } from "../../components/bodymap/usePointing";
 import { UtteranceLine, mergeLines } from "../../components/conversation/UtteranceLine";
@@ -52,8 +44,15 @@ export function ClinicianPage() {
 
   const { connected } = useRoom(encounterId, (msg) => {
     handlePoint(msg);
-    // Patient-screen messages. The server never sends drafts here; this guards against it anyway.
-    if (msg.type === "point" || msg.type === "gesture" || msg.type === "draft" || msg.type === "draft_closed") return;
+    // Patient-screen and call messages. The server never sends drafts here; this guards against it anyway.
+    if (
+      msg.type === "point" ||
+      msg.type === "gesture" ||
+      msg.type === "signal" ||
+      msg.type === "draft" ||
+      msg.type === "draft_closed"
+    )
+      return;
     if (msg.type === "pain") {
       apply(msg.data);
       return;
@@ -225,40 +224,7 @@ export function ClinicianPage() {
           )}
         </div>
 
-        <section className="panel pop pop-blue" style={{ flex: "1 1 320px" }} aria-label="Patient body map">
-          <h2 className="section-title">Pain map</h2>
-          {pointed && (
-            <p className="callout" role="status">
-              {pointed.gesture === "touch" ? "Touched" : "Pointing at"}: <strong>{ZONE_LABELS[pointed.zone]}</strong>
-              {pointed.complaint && <> · {pointed.complaint}</>}
-              {pointed.gesture === "touch" && !pointed.confirmed ? (
-                <> · not confirmed, the patient is checking it</>
-              ) : pain[pointed.zone] ? (
-                <> · {pain[pointed.zone]}/10</>
-              ) : (
-                <> · severity not rated yet</>
-              )}
-            </p>
-          )}
-          <div className="row" style={{ gap: 8, justifyContent: "center" }}>
-            {(["front", "back", "face"] as const).map((v) => (
-              <figure key={v} style={{ margin: 0, flex: "1 1 100px", maxWidth: 150 }}>
-                <BodyMap
-                  view={v}
-                  pain={pain}
-                  highlighted={pointed?.zone}
-                  tentative={pointed?.gesture === "touch" && !pointed.confirmed}
-                />
-                <figcaption className="muted" style={{ textAlign: "center", fontSize: 13 }}>
-                  {v === "front" ? "Front" : v === "back" ? "Back" : "Face"}
-                </figcaption>
-              </figure>
-            ))}
-          </div>
-          <div className="painlist-card">
-            <PainList pain={pain} />
-          </div>
-        </section>
+        <PainMapPanel pain={pain} pointed={pointed} style={{ flex: "1 1 320px" }} />
       </div>
     </AppShell>
   );

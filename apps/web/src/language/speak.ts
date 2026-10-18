@@ -30,21 +30,30 @@ export function unlockVoice() {
 }
 
 // Speaks each part in its own tone (pitch, rate, volume), one after another.
-export function speak(parts: { text: string; tone: VoiceTone }[]) {
-  if (!speechSupported || !parts.length) return;
+// onEnd runs once the last part has been said (or failed), e.g. to resume listening.
+export function speak(parts: { text: string; tone: VoiceTone }[], opts: { onEnd?: () => void } = {}) {
+  const said = parts.filter((p) => p.text);
   // No on-device English voice: stay silent rather than send the text away.
-  if (!voice) pickVoice();
-  if (!voice) return;
+  if (speechSupported && !voice) pickVoice();
+  if (!speechSupported || !voice || !said.length) {
+    opts.onEnd?.();
+    return;
+  }
   // Say the newest sentence now rather than queueing behind older ones.
   speechSynthesis.cancel();
-  for (const { text, tone } of parts) {
-    if (!text) continue;
+  let done = false;
+  const end = () => {
+    if (!done) (done = true), opts.onEnd?.();
+  };
+  said.forEach(({ text, tone }, i) => {
     const u = new SpeechSynthesisUtterance(text);
     u.voice = voice;
-    u.lang = voice.lang;
+    u.lang = voice!.lang;
     u.pitch = tone.pitch;
     u.rate = tone.rate;
     u.volume = tone.volume;
+    u.onerror = end;
+    if (i === said.length - 1) u.onend = end;
     speechSynthesis.speak(u);
-  }
+  });
 }

@@ -202,11 +202,14 @@ a:hover { text-decoration: underline; }
 .msg { display: flex; gap: 10px; align-items: flex-end; animation: rise 0.4s both; }
 .msg .avatar { width: 32px; height: 32px; flex-shrink: 0; }
 .patient-avatar { border-radius: 50%; display: grid; place-items: center; background: var(--blue-soft); color: var(--blue); }
-.msg.from-clinician { flex-direction: row-reverse; }
+/* The viewer's own lines on the right in blue, the other side's on the left. */
+.msg.mine { flex-direction: row-reverse; }
 .bubble { max-width: 80%; background: var(--surface); border-radius: 18px 18px 18px 6px; padding: 12px 14px; box-shadow: var(--shadow); }
-.from-clinician .bubble { background: linear-gradient(135deg, var(--blue-2), var(--blue)); color: #fff; border-radius: 18px 18px 6px 18px; }
-.from-clinician .bubble .muted, .from-clinician .bubble .gloss, .from-clinician .bubble .face { color: rgba(255, 255, 255, 0.8); }
+.mine .bubble { background: linear-gradient(135deg, var(--blue-2), var(--blue)); color: #fff; border-radius: 18px 18px 6px 18px; }
+.mine .bubble .muted, .mine .bubble .gloss, .mine .bubble .face { color: rgba(255, 255, 255, 0.8); }
 .bubble.urgent { box-shadow: inset 3px 0 0 var(--signal), var(--shadow); background: color-mix(in srgb, var(--signal-soft) 60%, var(--surface)); }
+.mine .bubble.urgent { color: var(--ink); }
+.mine .bubble.urgent .muted, .mine .bubble.urgent .gloss, .mine .bubble.urgent .face { color: var(--muted); }
 .bubble .meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; font-size: 12.5px; }
 .bubble .btn.small { background: var(--surface-2); }
 .chat-panel { background: color-mix(in srgb, var(--surface) 55%, transparent); backdrop-filter: blur(6px); }
@@ -358,6 +361,78 @@ a.icon-btn:hover { text-decoration: none; }
 .confirm-zone { margin: 0 0 8px; font-size: clamp(26px, 3.4vw, 34px); font-weight: 500; letter-spacing: -0.02em; line-height: 1.15; }
 .camera-reading { margin: 10px 0 0; font-size: 14px; }
 
+/* Call mode: the other person large, yourself small, captions over the video */
+.call-stage { position: relative; width: 100%; border-radius: var(--radius); overflow: hidden; background: #11151c; box-shadow: var(--shadow); }
+.call-remote { width: 100%; height: 100%; object-fit: contain; display: block; background: #11151c; }
+.call-placeholder { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: #8a94a6; text-align: center; padding: 20px; }
+.call-placeholder p { margin: 0; font-size: 16px; }
+.call-self { position: absolute; top: 12px; right: 12px; width: 26%; min-width: 96px; max-width: 200px; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 12px; background: #000; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35); }
+.call-captions { position: absolute; left: 0; right: 0; bottom: 0; padding: 40px 18px 16px; background: linear-gradient(180deg, transparent, rgba(8, 10, 15, 0.82) 45%); color: #fff; }
+.caption-text { margin: 0; font-size: clamp(20px, 2.6vw, 30px); font-weight: 500; line-height: 1.3; letter-spacing: -0.01em; }
+.caption-text.live { color: #fff; }
+.call-captions .caption-text:not(.live) { color: rgba(255, 255, 255, 0.85); }
+.caption-sign .meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; }
+.caption-sign .gloss { font-family: var(--font-mono); font-size: 12px; color: rgba(255, 255, 255, 0.7); }
+.caption-sign.urgent { border-left: 4px solid var(--signal); padding-left: 12px; }
+.caption-mine { margin: 0; font-size: 18px; min-height: 1.5em; }
+.call-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.call-status { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.chip.safety b { font-family: var(--font-mono); font-weight: 600; letter-spacing: 0.04em; }
+.answer-card { border: 2px solid var(--blue); animation: rise 0.3s both; }
+.answer-card .eyebrow { margin: 0 0 2px; }
+.answer-buttons { display: flex; gap: 12px; flex-wrap: wrap; }
+.answer-buttons .btn { flex: 1 1 140px; font-size: 22px; padding: 18px 28px; }
+
+/* Call layout: the video and what needs an answer on the left; a sidebar that
+   stays in view on the right (pain map and conversation for the doctor, tabs
+   for the patient). One column on narrow screens. */
+.page:has(.call-layout) { max-width: 1360px; }
+.call-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 400px); gap: 18px; align-items: start; margin-top: 8px; }
+.call-main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.call-side { position: sticky; top: 76px; max-height: calc(100vh - 92px); display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.call-side > .panel { flex-shrink: 0; }
+.call-side .call-chat { flex: 1 1 auto; min-height: 180px; overflow-y: auto; flex-shrink: 1; }
+.call-side-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; border-radius: var(--radius); }
+.call-stage { aspect-ratio: 16 / 10; max-height: calc(100vh - 250px); min-height: 280px; }
+.call-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; align-items: center; }
+.call-notice { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 20px; padding: 18px 20px; }
+.call-notice-title { margin: 0 0 4px; font-size: clamp(20px, 2.2vw, 26px); font-weight: 500; letter-spacing: -0.02em; line-height: 1.2; }
+.call-reply .field { margin-top: 12px; }
+.call-fine { margin: 6px 0 0; font-size: 12.5px; display: flex; gap: 6px; align-items: flex-start; }
+.call-fine svg { flex-shrink: 0; margin-top: 2px; }
+.call-main .severity { grid-template-columns: repeat(11, minmax(0, 1fr)); gap: 8px; }
+.call-main .severity button { min-height: 0; font-size: 18px; }
+.answer-card { padding: 16px 20px; }
+.answer-buttons .btn { padding: 14px 24px; }
+.call-tabs { display: flex; width: 100%; flex-shrink: 0; }
+.call-tabs button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 10px; }
+.tab-count { font-size: 11.5px; min-width: 20px; padding: 1px 6px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+.call-tabs button[aria-pressed="true"] .tab-count { background: rgba(255, 255, 255, 0.18); color: inherit; }
+.tab-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
+.tab-dot.on { background: var(--green); }
+.seg-small button { padding: 6px 14px; font-size: 14px; }
+.call-bodymap { max-width: 210px; margin: 0 auto; }
+.call-side .chat-panel .chat { gap: 10px; }
+.call-side .bubble { max-width: 88%; }
+@media (max-width: 900px) {
+  .call-layout { grid-template-columns: minmax(0, 1fr); }
+  .call-side { position: static; max-height: none; }
+  .call-side-body { overflow: visible; }
+  .call-side .call-chat { max-height: 60vh; }
+  .call-stage { aspect-ratio: 4 / 3; max-height: 60vh; min-height: 0; }
+  .call-main .severity { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .call-main .severity button { min-height: 48px; }
+}
+body:has(.call-layout) .shell-in { max-width: 1360px; }
+/* Front, back and face side by side even in the narrow sidebar. */
+.call-side figure { flex: 1 1 0 !important; min-width: 0; }
+.call-side .row { flex-wrap: nowrap; }
+@media (max-width: 900px) {
+  .call-controls { gap: 8px; }
+  .call-buttons { width: 100%; margin-left: 0; flex-wrap: nowrap; gap: 6px; }
+  .call-buttons .btn { padding: 10px 14px; white-space: nowrap; }
+  .call-buttons .btn.danger { margin-left: auto; }
+}
 /* "Check what you signed": big, plain, high contrast, silent */
 .draft { border: 3px solid var(--ink); margin-bottom: 20px; padding: clamp(20px, 3vw, 32px); animation: rise 0.3s both; }
 .draft .eyebrow { margin: 0 0 6px; color: var(--ink); font-size: 14px; }
@@ -396,3 +471,24 @@ a.icon-btn:hover { text-decoration: none; }
 .checkin-input { width: 100%; min-height: 76px; padding: 12px 20px; border: 3px solid var(--ink); border-radius: var(--radius-sm); background: #fff; color: var(--ink); font: inherit; font-size: 32px; }
 .checkin-input:focus { outline: 4px solid color-mix(in srgb, var(--blue) 45%, transparent); outline-offset: 2px; }
 .name-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 10px 0 0; font-size: 16px; color: var(--ink); }
+
+/* Wizard mode (operator panel) */
+.wiz { align-items: stretch; }
+.wiz-col { flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 18px; }
+.wiz-hint { font-size: 13px; margin: 0 0 10px; }
+.wiz-presets, .wiz-palette { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 12px; }
+.wiz-palette .wiz-hint { margin: 0 4px 0 0; }
+.wiz-clause { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-height: 44px; padding: 8px; margin-bottom: 12px; border-radius: var(--radius-sm); background: var(--surface-2); }
+.wiz-chip { display: inline-flex; align-items: center; gap: 2px; background: var(--surface); border-radius: 999px; padding: 3px 4px 3px 10px; box-shadow: var(--shadow); }
+.wiz-chip code { font-family: var(--font-mono); font-size: 13px; }
+.wiz-chip button { border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 15px; line-height: 1; padding: 2px 6px; border-radius: 999px; }
+.wiz-chip button:hover { color: var(--ink); background: var(--surface-2); }
+.wiz-flags { flex-wrap: wrap; margin-bottom: 12px; }
+.wiz-field { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 14px; }
+.wiz-field input[type="range"] { flex: 1; }
+.wiz-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0; }
+.wiz-error { color: var(--signal); }
+.wiz-label { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; margin: 10px 0 2px; }
+.wiz-sentence { font-size: 20px; font-weight: 500; letter-spacing: -0.01em; margin: 0 0 8px; }
+.wiz-map { max-width: 220px; margin: 12px auto 4px; }
+.wiz-event { font-size: 14px; }

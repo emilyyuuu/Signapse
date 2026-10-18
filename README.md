@@ -10,7 +10,7 @@ This is a hackathon project (about 36 hours). The full plan, a clickable prototy
 
 ## How it works
 
-1. **Sign recognition (on device).** MediaPipe `HandLandmarker` and `FaceLandmarker` run in a local Python process on the patient laptop (`apps/facial_grammar`). Hand landmarks are normalized (subtract the wrist position, divide by hand size) and split into segments by hand speed. Each segment is matched against recorded templates with DTW + k-NN. The vocabulary is about 30 isolated clinical ASL signs, about 20 takes each, stored as landmark JSON only, never video.
+1. **Sign recognition (on device).** MediaPipe `HandLandmarker` and `FaceLandmarker` run in a local Python process on the patient laptop (`apps/sign_recognition`, next to `apps/facial_grammar`). Hand landmarks are normalized (subtract the wrist position, divide by hand size) and split into segments by hand speed. Each segment is matched against recorded templates with DTW + k-NN. The vocabulary is about 30 isolated clinical ASL signs, about 20 takes each, stored as landmark JSON only, never video.
 2. **Facial grammar engine (on device).** This is the core feature. A neutral-face calibration stores a baseline for each patient. Over each clause window, `browInnerUp`/`browOuterUp`/`browDown`/`eyeSquint` blendshapes and head yaw/pitch are mapped to one of four flags: `statement`, `question` (brows raised for more than ~300 ms), `negation` (2 or more yaw reversals) or `intensified` (furrow or squint). The rules are plain Python (`apps/facial_grammar/`), not a model.
 3. **Clinical sentence processor.** A phrase table keyed by complaint fills a sentence template for each flag. An optional Claude Haiku rewrite works on redacted text only and falls back to the template after 1 s. Output is spoken with `speechSynthesis` and saved as structured fields. The voice's tone follows the face (`packages/shared/src/tone.ts`): raised eyebrows (question) raise the pitch, a head shake (negation) is lower and slower, furrowed brows (emphasis) are slower and louder, and strong cues push further. Only the sound changes, never the words. The "please confirm" reminder is always in a plain voice. Only on-device voices are used, so the text isn't sent to an online voice service. Any meaning that depends on a facial marker is flagged for the clinician to confirm.
 4. **Clinician reply.** Typed replies (in-browser Whisper dictation is a stretch goal) are rewritten in plain language and matched to icons. A reply ending in `?` shows large YES/NO buttons, and the patient's tap is logged.
@@ -46,6 +46,16 @@ apps/pointing/        Python package `pointing`: point at your own body -> body-
   api_client.py       posts /point and /clauses (text only) on a background thread
   lab.py              live pointing lab
   scripts/            fetch_models.sh downloads models/ (gitignored)
+apps/sign_recognition/  Python package `sign_recognition`: hand landmarks -> sign labels (DTW + k-NN)
+  capture.py          webcam source + MediaPipe Hand Landmarker
+  datatypes.py        VideoFrame, FrameSource
+  normalize.py        wrist-relative, hand-size-scaled landmarks (to do)
+  segment.py          split by hand speed into sign segments (to do)
+  dtw.py, knn.py      match segments against data/signs templates (to do)
+  pipeline.py         camera -> SignEvent (to do)
+  explore.py          template quality checks (pandas, optional `[explore]`)
+  lab.py              live preview with the hand skeleton
+  scripts/            fetch_models.sh downloads models/ (gitignored)
 apps/web/             React + Vite frontend
   src/routes/         patient, clinician, review screens
   src/language/       phrase table, sentence templates, plain-language replies
@@ -73,6 +83,15 @@ scripts/fetch_models.sh
 ```
 
 Grammar thresholds are in `apps/facial_grammar/datatypes.py`. Tune them against recorded clips.
+
+## Running sign recognition
+
+```
+cd apps/sign_recognition && python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
+scripts/fetch_models.sh
+.venv/bin/pytest
+.venv/bin/python -m sign_recognition.lab   # hand skeleton preview, q quit
+```
 
 ## Running pointing
 
@@ -140,9 +159,29 @@ curl -X POST http://localhost:8787/clauses -H "Content-Type: application/json" -
 
 Pointing: the vision process POSTs `{encounterId, zone, confidence}` to `/point`. It isn't stored, only broadcast as a `point` room message, and `usePointing` in `apps/web/src/components/bodymap/` turns it into the highlighted zone. The record is the clause gloss (`POINT-<ZONE>`, read by `complaintOf` in `packages/shared/src/language.ts`) and the pain reading the patient confirms (`source: "pointing"`). Zone ids and shapes are in `BODY_VIEWS` in `packages/shared/src/bodyZones.ts`.
 
+## Wizard mode
+
+For demos and testing without a camera, open `/wizard?e=<id>`. Without `?e=` it uses the newest open visit, or the demo visit if none is open. An operator plays the patient's side through the real pipeline: tap signs into a clause, pick the facial flag and send it to `/clauses`. A preview shows the clinician's sentence (`/translate`) and the patient's wording before anything is sent. Clauses go through the patient's Send/Redo/Edit check unless **Skip the patient's check** is ticked (`direct: true`). **Demo lines** send a scripted clause in one click (shift-click loads it into the builder instead); edit them in `apps/web/src/wizard/presets.ts`. The body map sends `/point` (point or touch) or adds `POINT-<ZONE>` to the clause, and **Nod**/**Shake** send `/gesture`. A live log shows drafts waiting for the patient, point/gesture/pain events and the conversation.
+
+## Call mode
+
+For a patient who needs to reach a hospital or doctor remotely. On the start page, choose **Call a doctor**. That starts a visit and opens `/call?e=<id>`. The patient sends the doctor the link shown there (`/call/doctor?e=<id>`). The doctor opens it in Chrome or Edge, clicks **Join call** and waits until the patient lets them in.
+
+- **Patient → doctor:** the patient signs to the camera. `apps/pointing` posts clauses exactly as in a visit. The doctor sees each sentence as a caption over the patient's video, and it is read aloud, with a chime when it is urgent. The patient can also type.
+- **Doctor → patient:** the doctor's speech is captioned live on the patient's screen in large text. Finished sentences are saved as clinician replies. A reply that ends in `?` gives the patient big YES/NO buttons.
+- The call is an ordinary encounter, so the review screen and chart note cover it.
+
+**Encryption.** Audio, video and live captions go peer to peer over WebRTC and are encrypted end to end between the two browsers (DTLS-SRTP, plus a data channel for captions). The API only relays the setup messages (`signal` in the room socket), validated and rate limited, and it never sees media or live captions. More protections:
+- The patient has to **admit** the doctor, and each room allows one patient and one doctor socket, so a third person with the link is refused.
+- Both screens show a **safety code** made from the two DTLS fingerprints. If the codes match, nobody, the server included, is in the middle.
+
+The server still sees and stores the finished sentences, as it does for visits, so they can be charted. Doctor captions use on-device speech recognition when the browser offers it (`processLocally`). Otherwise the page tells the doctor that their voice goes to the browser's speech service and offers typing instead.
+
+The sign-reading program usually holds the webcam, so the patient's call video is its local preview drawn onto a canvas. Without the program, **Video only** uses the webcam directly. Calls between networks that block direct connections need a TURN relay (`VITE_TURN_URL`, `VITE_TURN_USER`, `VITE_TURN_PASS`). Calls need HTTPS outside localhost.
+
 ## Non-negotiables
 
-- **Privacy:** camera frames and landmarks are processed in the local vision process and discarded. The API rejects anything that isn't text or numbers. The only personal data is the patient's name, typed at check-in on the patient station and stored in its own column (`encounters.patient_name`); the key is an internal uuid, and screens also show a token like PT-7K3Q. The name is never sent to Gemini (sentences are built from sign labels, and the AI note summary refuses to run if the visit text mentions the name), never put in a URL or a log, and demos use fake names. Signapse is not HIPAA compliant and not a substitute for a qualified interpreter. The UI shows a live "video frames sent: 0" counter. Chrome's `SpeechRecognition` sends audio to the cloud, so don't use it outside a clearly labelled stand-in.
+- **Privacy:** camera frames and landmarks are processed in the local vision process and discarded. The API rejects anything that isn't text or numbers. Patients are tokens, not names. The UI shows a live "video frames sent: 0" counter. In call mode the patient's video goes only to the doctor, peer to peer and encrypted (see Call mode). Chrome's `SpeechRecognition` sends audio to the cloud, so don't use it outside a clearly labelled stand-in.
 - **Safety:** a wrong meaning is a clinical risk, so lines that depend on a marker need clinician confirmation before charting. Signapse does not replace qualified interpreters and is not HIPAA/PHIPA compliant.
 - **Demo resilience:** wizard mode (an operator triggers signs through the same pipeline) must work end to end before hour 8. Event writes are queued and must never block the UI.
 

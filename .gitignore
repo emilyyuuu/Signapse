@@ -5,10 +5,15 @@ dist/
 !.env.example
 *.log
 .DS_Store
-
 # Raw recordings must never be committed; only landmark JSON goes in data/signs
 *.webm
 *.mp4
+data/raw
+data/processed
+/apps/recognition-python/app/data/
+data/raw
+data/processed
+/apps/recognition-python/app/data/
 
 .venv/
 __pycache__/
@@ -16,3 +21,6 @@ __pycache__/
 .pytest_cache/
 apps/facial_grammar/models/
 apps/pointing/models/
+apps/sign_recognition/models/
+apps/recognition-python/recorder/
+apps/sign_recognition/models/
