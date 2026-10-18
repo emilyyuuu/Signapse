@@ -105,7 +105,7 @@ Tuning in the lab: the overlay shows the zone, the gesture, the hold progress, f
 
 ## Connecting sign recognition and facial grammar
 
-When the patient pauses after a clause, the vision process POSTs the signs and the facial-grammar result to the API's `/clauses` endpoint. The server turns it into a clinical sentence (Gemini, with a rule-based fallback), saves it and pushes it to the clinician screen.
+When the patient pauses after a clause, the vision process POSTs the signs and the facial-grammar result to the API's `/clauses` endpoint. That creates a **draft** (HTTP 202): the patient screen shows it in plain words ("You said no. You do not have chest pain.", plus what the face showed) with **Send**, **Redo** and **Edit**. Nothing is saved or sent to the clinician until the patient presses Send; the draft lives in server memory and goes to patient screens only. Then the server writes the clinical sentence (Gemini, with a rule-based fallback), saves it with how the patient confirmed it (`sent`, `edited`, or `auto_sent`, plus how many times they signed again) and pushes it to the clinician screen. Urgent drafts (e.g. chest pain) send themselves after 10 s if the patient does not answer (`URGENT_AUTOSEND_MS`), and the clinician sees "Sent automatically: patient did not answer". Add `"direct": true` to a `/clauses` body to skip the patient's check (testing and the wizard), or set `PATIENT_CONFIRM=false`. The facial "Confirm meaning" flag for the clinician is unchanged. Every patient action is logged in `patient_actions` (sign labels only).
 
 From Python (`apps/facial_grammar`), standard library only:
 

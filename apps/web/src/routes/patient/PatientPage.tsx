@@ -1,16 +1,34 @@
 import { useEffect, useState } from "react";
-import { ZONE_LABELS, type BodyView, type Encounter } from "@signapse/shared";
-import { encounterIdFromUrl, getEncounter } from "../../lib/api";
+import {
+  ZONE_LABELS,
+  signedLevel,
+  viewOf,
+  type BodyView,
+  type DraftView,
+  type Encounter,
+  type GrammarFlag,
+  type PatientAction,
+} from "@signapse/shared";
+import { checkIn, editDraft, encounterIdFromUrl, getEncounter, holdDraft, redoDraft, sendDraft } from "../../lib/api";
 import { useRoom } from "../../lib/useRoom";
 import { AppShell } from "../../components/AppShell";
 import { EmptyArt } from "../../components/brand";
 import { PageHeader } from "../../components/PageHeader";
 import { CameraPanel } from "../../components/camera/CameraPanel";
+import { DraftCard } from "../../components/draft/DraftCard";
+import { CheckIn } from "../../components/visit/CheckIn";
 import { BodyMap } from "../../components/bodymap/BodyMap";
 import { SeverityPicker } from "../../components/bodymap/SeverityPicker";
 import { PainList } from "../../components/bodymap/PainList";
 import { PointConfirm } from "../../components/bodymap/PointConfirm";
 import { usePainFlow } from "../../components/bodymap/usePainFlow";
+
+const OUTCOME_TEXT: Record<PatientAction, string> = {
+  sent: "Sent to the doctor.",
+  edited: "Sent to the doctor.",
+  auto_sent: "This was urgent, so it was sent to the doctor.",
+  redone: "OK. Sign it again.",
+};
 
 const VIEW_NAMES: Record<BodyView, string> = { front: "Front", back: "Back", face: "Face" };
 
@@ -21,6 +39,20 @@ export function PatientPage() {
   const { pain, view, setView, selected, pointed, fromPointing, signed, sendFailed, pick, tap } = flow;
 
   const [encounter, setEncounter] = useState<Encounter>();
+  // A signed clause waiting for the patient to check it, and the outcome shown afterwards.
+  const [draft, setDraft] = useState<DraftView>();
+  const [draftBusy, setDraftBusy] = useState(false);
+  const [draftError, setDraftError] = useState<string>();
+  const [outcome, setOutcome] = useState<string>();
+  // Check-in: the patient types their name first. Skipping is remembered for this tab.
+  const skipKey = `signapse.skipCheckin.${encounterId}`;
+  const [skipped, setSkipped] = useState(() => {
+    try {
+      return sessionStorage.getItem(skipKey) === "1";
+    } catch {
+      return false;
+    }
+  });
 
   useEffect(() => {
     getEncounter(encounterId)
@@ -29,10 +61,93 @@ export function PatientPage() {
   }, [encounterId]);
 
   // Keeps this screen in sync if another device (or the camera) reports pain.
-  const { connected } = useRoom(encounterId, (msg) => {
-    if (msg.type === "ended") setEncounter(msg.data);
-    flow.handle(msg);
-  });
+  // Pointing at a body part opens the pain level for it straight away.
+  const { connected } = useRoom(
+    encounterId,
+    (msg) => {
+    if (msg.type === "pain") apply(msg.data);
+    if (msg.type === "ended" || msg.type === "encounter") setEncounter(msg.data);
+    if (msg.type === "draft") {
+      setDraft(msg.data);
+      setDraftError(undefined);
+      setOutcome(undefined);
+    }
+    if (msg.type === "draft_closed") {
+      setDraft((d) => (d && d.id === msg.data.id ? undefined : d));
+      setDraftBusy(false);
+      setOutcome(OUTCOME_TEXT[msg.data.action]);
+    }
+    // A signed number sets the level for the body part that is selected.
+    if (msg.type === "utterance" && msg.data.speaker === "patient" && msg.data.gloss && selected) {
+      const level = signedLevel(msg.data.gloss);
+      if (level !== undefined) {
+        setSigned({ zone: selected, level });
+        void pick(level);
+        return;
+      }
+    }
+    const zone = handlePoint(msg);
+    if (zone) {
+      // Pointing only shows what the camera found. A nod confirms it and opens the pain scale.
+      setView(viewOf(zone));
+      setSelected(undefined);
+      setFromPointing(false);
+    }
+    if (msg.type === "gesture") {
+      if (msg.data.gesture === "nod" && pointed && !selected) confirmPointed();
+      if (msg.data.gesture === "shake") cancelPointed();
+    }
+  },
+    "patient",
+  );
+
+  // One tap sets the level and closes the picker; the map shows the result.
+  const pick = async (severity: number) => {
+    if (!selected) return;
+    const zone = selected;
+    const source = fromPointing ? "pointing" : "tap";
+    setSelected(undefined);
+    setFromPointing(false);
+    clearPoint();
+    setSendFailed(!(await report(zone, severity, source)));
+  };
+
+  const run = async (fn: () => Promise<{ ok: boolean; error?: string }>) => {
+    setDraftBusy(true);
+    setDraftError(undefined);
+    const res = await fn();
+    if (!res.ok) setDraftError(res.error);
+    setDraftBusy(false);
+  };
+  const onSend = () => draft && run(() => sendDraft(encounterId, draft.id));
+  const onRedo = () => draft && run(() => redoDraft(encounterId, draft.id));
+  const onEdit = (change: { gloss?: string[]; grammarFlag?: GrammarFlag }) =>
+    draft && run(() => editDraft(encounterId, draft.id, change));
+  const onHold = () => {
+    if (draft) void holdDraft(encounterId, draft.id);
+  };
+
+  // Nod, or the Yes button: the body part the camera found is right, so ask for the number.
+  const confirmPointed = () => {
+    if (!pointed) return;
+    setSelected(pointed.zone);
+    setFromPointing(true);
+  };
+
+  // Shake, or the No button: that was not it. Clear it so the patient can point again.
+  const cancelPointed = () => {
+    clearPoint();
+    if (fromPointing) setSelected(undefined);
+    setFromPointing(false);
+  };
+
+  // Tapping another zone corrects a misread point.
+  const tap = (zone: string) => {
+    clearPoint();
+    setSigned(undefined);
+    setSelected(zone);
+    setFromPointing(false);
+  };
 
   if (encounter?.endedAt) {
     return (
@@ -46,9 +161,40 @@ export function PatientPage() {
     );
   }
 
+  if (encounter && !encounter.patientName && !skipped) {
+    return (
+      <AppShell screen="patient" encounter={encounter} connected={connected}>
+        <CheckIn
+          onSubmit={async (name) => {
+            const res = await checkIn(encounterId, name);
+            if (res.ok && res.encounter) setEncounter(res.encounter);
+            return res.ok ? undefined : res.error;
+          }}
+          onSkip={() => {
+            try {
+              sessionStorage.setItem(skipKey, "1");
+            } catch {
+              /* storage unavailable: skipping lasts until reload */
+            }
+            setSkipped(true);
+          }}
+        />
+      </AppShell>
+    );
+  }
+
   return (
     <AppShell screen="patient" encounter={encounter} connected={connected}>
       <PageHeader title="Where does it hurt?">Tap the body or point to where it hurts, then choose how much.</PageHeader>
+
+      {draft && (
+        <DraftCard draft={draft} busy={draftBusy} error={draftError} onSend={onSend} onRedo={onRedo} onEdit={onEdit} onHold={onHold} />
+      )}
+      {!draft && outcome && (
+        <p className="outcome" role="status">
+          {outcome}
+        </p>
+      )}
 
       <div className="row">
         <div className="panel pop pop-blue bodycard" style={{ flex: "0 1 340px" }}>
@@ -66,6 +212,7 @@ export function PatientPage() {
             highlighted={pointed?.zone}
             tentative={pointed?.gesture === "touch"}
             onPick={tap}
+            mirrored
           />
         </div>
 

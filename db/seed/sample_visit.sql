@@ -5,6 +5,10 @@ INSERT INTO encounters (encounter_id, patient_ref, clinician_id, started_at)
 VALUES ('00000000-0000-4000-8000-000000000002', 'PT-SAMPLE-0002', 'dr-sample', now() - INTERVAL '45 minutes')
 ON CONFLICT (encounter_id) DO NOTHING;
 
+-- Fake name for the sample visit.
+UPDATE encounters SET patient_name = 'Casey Sample'
+WHERE encounter_id = '00000000-0000-4000-8000-000000000002' AND patient_name IS NULL;
+
 -- It's a finished visit, so it doesn't show up as open on the start screen.
 UPDATE encounters SET ended_at = now() - INTERVAL '1 minute'
 WHERE encounter_id = '00000000-0000-4000-8000-000000000002' AND ended_at IS NULL;

@@ -56,7 +56,7 @@
 html { background: var(--bg); }
 body { margin: 0; min-height: 100vh; color: var(--ink); font-family: var(--font); font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased; font-feature-settings: "cv11", "ss01"; position: relative; }
 /* The light-blue wash at the top of every page. */
-body { overflow-x: hidden; }
+html, body { overflow-x: clip; } /* the background wash drifts past the edges; clip it so the page never scrolls sideways */
 body::before { content: ""; position: absolute; inset: -60px -60px auto -60px; height: 560px; z-index: -1; pointer-events: none;
   background:
     radial-gradient(55% 70% at 12% 0%, var(--blue-wash) 0%, transparent 70%),
@@ -323,6 +323,7 @@ a.icon-btn:hover { text-decoration: none; }
 .zone { stroke: color-mix(in srgb, var(--blue) 22%, transparent); stroke-width: 1.2; transition: fill 0.25s ease; }
 .zone.interactive { cursor: pointer; }
 .face-outline { fill: none; stroke: var(--line); stroke-width: 1.2; }
+.side-label { fill: var(--muted); font-weight: 600; }
 .zone.interactive:hover { stroke: var(--blue); stroke-width: 2; }
 .zone.selected, .zone.highlighted { stroke: var(--blue); stroke-width: 3; }
 /* Where the patient is pointing, from the camera */
@@ -431,3 +432,41 @@ body:has(.call-layout) .shell-in { max-width: 1360px; }
   .call-buttons .btn { padding: 10px 14px; white-space: nowrap; }
   .call-buttons .btn.danger { margin-left: auto; }
 }
+/* "Check what you signed": big, plain, high contrast, silent */
+.draft { border: 3px solid var(--ink); margin-bottom: 20px; padding: clamp(20px, 3vw, 32px); animation: rise 0.3s both; }
+.draft .eyebrow { margin: 0 0 6px; color: var(--ink); font-size: 14px; }
+.draft-text { margin: 0 0 10px; font-size: clamp(30px, 4.4vw, 46px); font-weight: 500; letter-spacing: -0.02em; line-height: 1.15; }
+.draft-face { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; font-size: clamp(20px, 2.4vw, 26px); }
+.draft-tags { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 18px; }
+.draft-tag { padding: 6px 14px; border-radius: 999px; background: var(--ink); color: #fff; font-size: 18px; font-weight: 600; }
+.draft-tag.plain { background: var(--surface-2); color: var(--ink); border: 2px solid var(--ink); }
+.draft-timer { margin: 0 0 18px; padding: 14px 18px; border-radius: var(--radius-sm); background: var(--signal-soft); border: 2px solid var(--signal); }
+.draft-timer p { margin: 0 0 10px; font-size: 20px; color: var(--ink); }
+.draft-timer .bar { height: 12px; background: #fff; }
+.draft-timer .bar i { background: var(--signal); transition: width 0.25s linear; }
+.draft-actions { display: flex; flex-wrap: wrap; gap: 14px; }
+.draft-help { margin: 12px 0 0; font-size: 17px; color: var(--ink); }
+.btn.huge { min-height: 76px; min-width: 150px; padding: 14px 32px; font-size: 24px; font-weight: 700; border: 3px solid var(--ink); background: #fff; color: var(--ink); }
+.btn.huge.primary { background: #1e3a8a; border-color: #1e3a8a; color: #fff; flex: 1 1 220px; }
+.btn.huge:disabled { opacity: 0.6; }
+.draft-edit { margin-top: 24px; padding-top: 20px; border-top: 3px solid var(--ink); }
+.draft-edit h2 { margin: 0 0 12px; font-size: 26px; }
+.draft-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 22px; }
+.draft-choices.words { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); margin: 16px 0 0; }
+.choice { min-height: 64px; padding: 12px 16px; border-radius: var(--radius-sm); border: 3px solid var(--ink); background: #fff; color: var(--ink); font-size: 21px; font-weight: 600; text-align: left; }
+.choice[aria-pressed="true"] { background: #1e3a8a; border-color: #1e3a8a; color: #fff; }
+.draft-signlist { list-style: none; margin: 0 0 14px; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.draft-signlist li { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.draft-signname { flex: 1 1 160px; font-size: 24px; font-weight: 600; }
+.draft-edit .btn { min-height: 56px; font-size: 19px; font-weight: 600; border: 3px solid var(--ink); background: #fff; color: var(--ink); }
+.outcome { margin: 0 0 18px; padding: 16px 20px; border-radius: var(--radius-sm); background: var(--green-soft); border: 2px solid var(--green); font-size: 22px; font-weight: 600; color: var(--ink); animation: rise 0.3s both; }
+
+/* Check-in on the patient station, and the name row on staff screens */
+.checkin { max-width: 720px; margin: 24px auto; padding: clamp(24px, 4vw, 44px); border: 3px solid var(--ink); }
+.checkin .eyebrow { margin: 0 0 6px; color: var(--ink); font-size: 14px; }
+.checkin-title { margin: 0 0 8px; font-size: clamp(34px, 5vw, 52px); font-weight: 500; }
+.checkin-help { margin: 0 0 22px; font-size: 22px; color: var(--ink); }
+.checkin-label { display: block; margin: 0 0 8px; font-size: 20px; font-weight: 600; }
+.checkin-input { width: 100%; min-height: 76px; padding: 12px 20px; border: 3px solid var(--ink); border-radius: var(--radius-sm); background: #fff; color: var(--ink); font: inherit; font-size: 32px; }
+.checkin-input:focus { outline: 4px solid color-mix(in srgb, var(--blue) 45%, transparent); outline-offset: 2px; }
+.name-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 10px 0 0; font-size: 16px; color: var(--ink); }

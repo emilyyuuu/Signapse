@@ -96,6 +96,10 @@ export function attachRooms(server: Server, allowedOrigins: string[]) {
         room.delete(client);
         if (room.size === 0) rooms.delete(encounterId);
       });
+      if (role === "patient") {
+        const hello = patientHello(encounterId);
+        if (hello) ws.send(JSON.stringify(hello));
+      }
     });
   });
 }

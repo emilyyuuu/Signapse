@@ -11,6 +11,9 @@ interface Props {
   tentative?: boolean;
   // Omit for a read-only map (clinician screen).
   onPick?: (zoneId: string) => void;
+  // Patient screen: drawn like a mirror (your left on the left), matching the
+  // mirrored camera preview. Otherwise front and face face the viewer.
+  mirrored?: boolean;
 }
 
 export function painFill(severity: number) {
@@ -21,10 +24,26 @@ export function painFill(severity: number) {
 
 const LABELS: Record<BodyView, string> = { front: "front view", back: "back view", face: "face" };
 
-export function BodyMap({ view, pain, selected, highlighted, tentative, onPick }: Props) {
+export function BodyMap({ view, pain, selected, highlighted, tentative, onPick, mirrored }: Props) {
   const box = VIEW_BOXES[view];
+  // The back view already has the patient's left on the viewer's left.
+  const flip = mirrored && view !== "back";
+  const leftIsPatientsLeft = mirrored || view === "back";
+  const [leftText, rightText] = mirrored
+    ? ["Your left", "Your right"]
+    : leftIsPatientsLeft
+      ? ["L", "R"]
+      : ["R", "L"];
+  const fontSize = box.w * (mirrored ? 0.06 : 0.1);
   return (
     <svg className="bodymap" viewBox={`0 0 ${box.w} ${box.h}`} role="group" aria-label={`Body map, ${LABELS[view]}`}>
+      <text className="side-label" x={2} y={fontSize} fontSize={fontSize} aria-hidden="true">
+        {leftText}
+      </text>
+      <text className="side-label" x={box.w - 2} y={fontSize} fontSize={fontSize} textAnchor="end" aria-hidden="true">
+        {rightText}
+      </text>
+      <g transform={flip ? `translate(${box.w} 0) scale(-1 1)` : undefined}>
       {view === "face" && <ellipse className="face-outline" cx={60} cy={70} rx={46} ry={58} />}
       {BODY_VIEWS[view].map((z) => {
         // A reading on a group (chest) or on a part this view doesn't draw (nose on
@@ -70,6 +89,7 @@ export function BodyMap({ view, pain, selected, highlighted, tentative, onPick }
           </rect>
         );
       })}
+      </g>
     </svg>
   );
 }
