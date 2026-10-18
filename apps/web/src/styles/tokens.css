@@ -319,8 +319,16 @@ a.icon-btn:hover { text-decoration: none; }
 .bodymap { width: 100%; max-width: 250px; height: auto; display: block; margin: 0 auto; }
 .zone { stroke: color-mix(in srgb, var(--blue) 22%, transparent); stroke-width: 1.2; transition: fill 0.25s ease; }
 .zone.interactive { cursor: pointer; }
+.face-outline { fill: none; stroke: var(--line); stroke-width: 1.2; }
 .zone.interactive:hover { stroke: var(--blue); stroke-width: 2; }
 .zone.selected, .zone.highlighted { stroke: var(--blue); stroke-width: 3; }
+/* Where the patient is pointing, from the camera */
+.zone.highlighted { animation: pointed 1s ease-in-out infinite alternate; }
+@keyframes pointed { from { stroke-width: 1.6; } to { stroke-width: 3.6; } }
+@media (prefers-reduced-motion: reduce) { .zone.highlighted { animation: none; } }
+/* A touch is a suggestion until the patient confirms it */
+.zone.tentative { stroke-dasharray: 4 3; }
+.callout { margin: 0 0 12px; padding: 10px 14px; border-radius: var(--radius-sm); background: var(--surface); box-shadow: var(--shadow); font-size: 14px; }
 
 /* Severity picker: big round targets for a patient in pain, on a tablet */
 .severity { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }

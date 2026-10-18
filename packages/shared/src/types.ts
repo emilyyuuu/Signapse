@@ -115,11 +115,26 @@ export interface StoredPainReading extends PainReading {
   ts: string;
 }
 
+// POST /point: the patient is pointing at or touching this zone on their own
+// body (from apps/pointing). Not stored: the clause gloss (POINT-<ZONE>) and the
+// pain reading the patient then confirms are the record.
+export interface PointEvent {
+  encounterId: string;
+  zone: string;
+  confidence: number; // 0–1
+  gesture?: "point" | "touch"; // index finger out, or any hand shape on the body
+}
+
+export interface StoredPointEvent extends PointEvent {
+  ts: string;
+}
+
 // Messages pushed to every browser in an encounter's WebSocket room.
 export type RoomMessage =
   | { type: "utterance"; data: StoredUtterance }
   | { type: "verified"; data: StoredUtterance } // a clinician confirmed an existing line
   | { type: "pain"; data: StoredPainReading }
+  | { type: "point"; data: StoredPointEvent } // the patient pointed at or touched a body part
   | { type: "ended"; data: Encounter }; // the visit was ended; screens stop accepting input
 
 // One point of the pain trend (continuous aggregate pain_by_minute).

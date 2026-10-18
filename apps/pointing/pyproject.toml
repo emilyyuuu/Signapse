@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pointing"
+version = "0.1.0"
+description = "Signapse pointing: index finger on your own body to a body-map zone, on device."
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "mediapipe>=0.10.14",
+    "opencv-python>=4.9",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+# This folder is the package itself: apps/pointing/ -> import pointing.
+[tool.setuptools]
+package-dir = { "pointing" = "." }
+packages = ["pointing"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,7 +1,7 @@
 import { randomInt } from "node:crypto";
 import { Hono } from "hono";
 import { z } from "zod";
-import { ZONE_IDS } from "@signapse/shared";
+import { ZONE_IDS, type StoredPointEvent } from "@signapse/shared";
 import type { Store } from "../db/client.js";
 import { broadcast } from "../ws/rooms.js";
 import { confidenceSchema, grammarFlagSchema, nmmSchema } from "./schemas.js";
@@ -30,6 +30,16 @@ const painSchema = z
     zone: z.enum(ZONE_IDS),
     severity: z.number().int().min(0).max(10),
     source: z.enum(["tap", "pointing"]),
+  })
+  .strict();
+
+// The patient is pointing at a zone on their own body. Zone id and a score only.
+const pointSchema = z
+  .object({
+    encounterId: z.string().uuid(),
+    zone: z.enum(ZONE_IDS),
+    confidence: confidenceSchema,
+    gesture: z.enum(["point", "touch"]).optional(),
   })
   .strict();
 
@@ -73,6 +83,17 @@ export function eventRoutes(store: Store) {
     const row = await store.insertPain(parsed.data);
     broadcast(row.encounterId, { type: "pain", data: row });
     return c.json(row, 201);
+  });
+
+  // Live only, not stored: the clause gloss and the confirmed pain reading are the record.
+  r.post("/point", async (c) => {
+    const parsed = pointSchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) return c.json({ error: parsed.error.flatten() }, 400);
+    const closed = await openEncounterError(store, parsed.data.encounterId);
+    if (closed) return c.json({ error: closed.error }, closed.status);
+    const point: StoredPointEvent = { ...parsed.data, ts: new Date().toISOString() };
+    broadcast(point.encounterId, { type: "point", data: point });
+    return c.json(point, 201);
   });
 
   r.post("/encounters", async (c) => {
