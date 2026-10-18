@@ -86,6 +86,7 @@ export interface ClauseRequest {
   grammarFlag: GrammarFlag; // from the facial grammar engine
   confidence?: number; // 0–1, lowest sign confidence in the clause
   nmm?: Record<string, number | string>; // facial-marker summary, e.g. {"browRaise": 0.82}
+  direct?: boolean; // skip the patient's check and send straight to the doctor (testing, wizard)
 }
 
 export interface ClauseResult {

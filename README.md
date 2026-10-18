@@ -140,6 +140,10 @@ curl -X POST http://localhost:8787/clauses -H "Content-Type: application/json" -
 
 Pointing: the vision process POSTs `{encounterId, zone, confidence}` to `/point`. It isn't stored, only broadcast as a `point` room message, and `usePointing` in `apps/web/src/components/bodymap/` turns it into the highlighted zone. The record is the clause gloss (`POINT-<ZONE>`, read by `complaintOf` in `packages/shared/src/language.ts`) and the pain reading the patient confirms (`source: "pointing"`). Zone ids and shapes are in `BODY_VIEWS` in `packages/shared/src/bodyZones.ts`.
 
+## Wizard mode
+
+For demos and testing without a camera, open `/wizard?e=<id>`. Without `?e=` it uses the newest open visit, or the demo visit if none is open. An operator plays the patient's side through the real pipeline: tap signs into a clause, pick the facial flag and send it to `/clauses`. A preview shows the clinician's sentence (`/translate`) and the patient's wording before anything is sent. Clauses go through the patient's Send/Redo/Edit check unless **Skip the patient's check** is ticked (`direct: true`). **Demo lines** send a scripted clause in one click (shift-click loads it into the builder instead); edit them in `apps/web/src/wizard/presets.ts`. The body map sends `/point` (point or touch) or adds `POINT-<ZONE>` to the clause, and **Nod**/**Shake** send `/gesture`. A live log shows drafts waiting for the patient, point/gesture/pain events and the conversation.
+
 ## Call mode
 
 For a patient who needs to reach a hospital or doctor remotely. On the start page, choose **Call a doctor**. That starts a visit and opens `/call?e=<id>`. The patient sends the doctor the link shown there (`/call/doctor?e=<id>`). The doctor opens it in Chrome or Edge, clicks **Join call** and waits until the patient lets them in.
