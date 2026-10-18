@@ -1,9 +1,10 @@
 import { randomInt } from "node:crypto";
 import { Hono } from "hono";
 import { z } from "zod";
-import { ZONE_IDS, type StoredGestureEvent, type StoredPointEvent } from "@signapse/shared";
+import { ZONE_IDS, cleanName, type StoredGestureEvent, type StoredPointEvent } from "@signapse/shared";
 import type { Store } from "../db/client.js";
 import { broadcast } from "../ws/rooms.js";
+import { clearEncounter } from "../drafts.js";
 import { confidenceSchema, grammarFlagSchema, nmmSchema } from "./schemas.js";
 
 // Only short text and numbers are accepted, and unknown keys are rejected,
@@ -52,10 +53,24 @@ const pointSchema = z
   })
   .strict();
 
-// Both optional: the server generates a patient token so no name is ever needed.
+// All optional: the server generates the patient token. The name is normally typed
+// later, at check-in on the patient station (POST /encounters/:id/name).
+const nameField = z
+  .string()
+  .max(200)
+  .transform((v, ctx) => {
+    const name = cleanName(v);
+    if (!name) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "That name has letters we can't accept." });
+    return name ?? "";
+  });
 const encounterSchema = z
-  .object({ patientRef: z.string().regex(/^[A-Za-z0-9-]{1,32}$/).optional(), clinicianId: text(64).optional() })
+  .object({
+    patientRef: z.string().regex(/^[A-Za-z0-9-]{1,32}$/).optional(),
+    patientName: nameField.optional(),
+    clinicianId: text(64).optional(), // kept for old callers; the screens no longer ask for it
+  })
   .strict();
+const checkInSchema = z.object({ name: nameField }).strict();
 
 // Short hospital-style token, e.g. PT-7K3Q, without look-alike characters.
 function newPatientRef() {
@@ -122,8 +137,24 @@ export function eventRoutes(store: Store) {
     const e = await store.createEncounter(
       parsed.data.patientRef ?? newPatientRef(),
       parsed.data.clinicianId ?? "clinician",
+      parsed.data.patientName,
     );
     return c.json(e, 201);
+  });
+
+  // Check-in: the patient types their name on the patient station. The name travels in
+  // the request body (never the URL) and is never logged or sent to Gemini.
+  r.post("/encounters/:id/name", async (c) => {
+    const id = c.req.param("id");
+    if (!z.string().uuid().safeParse(id).success) return c.json({ error: "bad id" }, 400);
+    const parsed = checkInSchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) return c.json({ error: "Please use letters, spaces, hyphens or apostrophes (up to 60)." }, 400);
+    const closed = await openEncounterError(store, id);
+    if (closed) return c.json({ error: closed.error }, closed.status);
+    const e = await store.setPatientName(id, parsed.data.name);
+    if (!e) return c.json({ error: "unknown encounter" }, 404);
+    broadcast(id, { type: "encounter", data: e });
+    return c.json(e);
   });
 
   // Open visits, newest first: what a patient station or the vision process joins.
@@ -137,6 +168,7 @@ export function eventRoutes(store: Store) {
     if (!z.string().uuid().safeParse(id).success) return c.json({ error: "bad id" }, 400);
     const e = await store.endEncounter(id);
     if (!e) return c.json({ error: "unknown encounter" }, 404);
+    clearEncounter(id);
     broadcast(id, { type: "ended", data: e });
     return c.json(e);
   });

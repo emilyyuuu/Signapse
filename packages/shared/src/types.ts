@@ -43,6 +43,8 @@ export interface UtteranceEvent {
   sentence: string;
   plainText?: string;
   confidence?: number;
+  // How the patient confirmed this line before it was sent (signed clauses).
+  patientConfirmation?: PatientConfirmation;
 }
 
 // Mirrors the `pain_readings` table.
@@ -96,8 +98,9 @@ export interface ClauseResult {
 
 export interface Encounter {
   encounterId: string;
-  patientRef: string;
-  clinicianId: string;
+  patientRef: string; // internal token, e.g. PT-7K3Q
+  patientName?: string; // typed at check-in; see db/migrations/003_patient_name.sql
+  clinicianId: string; // no longer entered anywhere; kept as an internal default
   signLanguage: string;
   startedAt: string;
   endedAt?: string;
@@ -142,13 +145,53 @@ export interface StoredGestureEvent extends GestureEvent {
   ts: string;
 }
 
+// The patient checks what they signed before it goes to the doctor.
+// sent: sent as understood; edited: they fixed it first; auto_sent: an urgent line
+// that sent itself after 10 s because they did not answer; redone: signed again.
+export type PatientAction = "sent" | "edited" | "auto_sent" | "redone";
+
+export interface PatientConfirmation {
+  action: "sent" | "edited" | "auto_sent";
+  redos: number; // how many times they signed again before this one
+  original?: { gloss: string[]; grammarFlag: GrammarFlag }; // before their edits
+}
+
+// One row of the patient action log (table patient_actions).
+export interface PatientActionLog {
+  encounterId: string;
+  draftId: string;
+  action: PatientAction;
+  urgent: boolean;
+  detail?: { gloss: string[]; grammarFlag: GrammarFlag };
+}
+
+// A signed clause waiting for the patient. Held in server memory and shown only
+// to patient screens; it is not saved or sent to the doctor until they press Send.
+export interface DraftView {
+  id: string;
+  encounterId: string;
+  gloss: string[];
+  grammarFlag: GrammarFlag;
+  patientText: string; // "You said: I have chest pain."
+  faceText: string; // "Your frown showed it is very strong."
+  urgent: boolean;
+  autoSendAt?: string; // urgent drafts send themselves at this time
+  now: string; // server clock when this was sent, to count down without clock drift
+  edited: boolean;
+  redos: number;
+  createdAt: string;
+}
+
 // Messages pushed to every browser in an encounter's WebSocket room.
 export type RoomMessage =
   | { type: "utterance"; data: StoredUtterance }
   | { type: "verified"; data: StoredUtterance } // a clinician confirmed an existing line
   | { type: "pain"; data: StoredPainReading }
   | { type: "point"; data: StoredPointEvent }
-  | { type: "gesture"; data: StoredGestureEvent } // the patient pointed at or touched a body part
+  | { type: "gesture"; data: StoredGestureEvent }
+  | { type: "draft"; data: DraftView } // patient screens only
+  | { type: "draft_closed"; data: { id: string; action: PatientAction } } // patient screens only // the patient pointed at or touched a body part
+  | { type: "encounter"; data: Encounter } // the visit changed (e.g. the patient checked in)
   | { type: "ended"; data: Encounter }; // the visit was ended; screens stop accepting input
 
 // One point of the pain trend (continuous aggregate pain_by_minute).
@@ -176,12 +219,14 @@ export interface NoteItem {
   confirmed: boolean;
   needsConfirm: boolean;
   verifiedBy?: string;
+  // How the patient confirmed it before it was sent (signed lines).
+  patientAction?: PatientConfirmation["action"];
 }
 
 // POST /encounters/:id/note. Facts come from stored data, never from the
 // language model; only aiSummary is model-written, and it is labelled so.
 export interface ChartNote {
-  encounter: Pick<Encounter, "encounterId" | "patientRef" | "clinicianId" | "startedAt" | "endedAt">;
+  encounter: Pick<Encounter, "encounterId" | "patientRef" | "patientName" | "clinicianId" | "startedAt" | "endedAt">;
   generatedAt: string;
   chiefComplaint?: string;
   reported: NoteItem[];

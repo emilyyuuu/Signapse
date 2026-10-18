@@ -53,8 +53,8 @@ export function AppShell({ screen, encounter, connected, actions, children }: Pr
             Signapse
           </a>
           {encounter && (
-            <span className="token" title="Patient token. No names are stored.">
-              {encounter.patientRef}
+            <span className="token" title="Patient name and visit token">
+              {kiosk ? encounter.patientRef : (encounter.patientName ?? encounter.patientRef)}
             </span>
           )}
           {status && (

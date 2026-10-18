@@ -82,11 +82,15 @@ const FACE: ZoneShape[] = [
 ];
 
 // Seen from behind, the patient's right side is on the viewer's right.
-const mirror = (z: ZoneShape): ZoneShape => ({ ...z, x: VIEW_WIDTH - z.x - z.w });
+// Ellipses are positioned by their centre, rects by their top-left corner.
+const mirror = (z: ZoneShape): ZoneShape => ({
+  ...z,
+  x: z.shape === "ellipse" ? VIEW_WIDTH - z.x : VIEW_WIDTH - z.x - z.w,
+});
 
 export const BODY_VIEWS: Record<BodyView, ZoneShape[]> = {
   front: [...FRONT_TORSO, ...LIMBS],
-  back: [...BACK_TORSO, ...LIMBS.map(mirror)],
+  back: [...BACK_TORSO, ...LIMBS].map(mirror),
   face: FACE,
 };
 
