@@ -139,6 +139,7 @@ a:hover { text-decoration: underline; }
 .chip.confirm { background: var(--amber-soft); color: var(--amber); }
 .chip.ok { background: var(--green-soft); color: var(--green); }
 .chip.live { background: var(--green-soft); color: var(--green); }
+.chip.tone { align-self: center; }
 
 /* Search-style input row */
 .field { display: flex; align-items: center; gap: 10px; background: var(--surface); border-radius: 999px; padding: 6px 6px 6px 18px; box-shadow: var(--shadow); }

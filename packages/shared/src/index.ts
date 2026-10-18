@@ -5,3 +5,4 @@ export * from "./language";
 export * from "./chartNote";
 export * from "./patient";
 export * from "./visit";
+export * from "./tone";

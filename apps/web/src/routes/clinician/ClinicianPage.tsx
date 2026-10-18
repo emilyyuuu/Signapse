@@ -1,5 +1,12 @@
 import { useEffect, useState } from "react";
-import { ZONE_LABELS, assessUtterance, type Encounter, type StoredUtterance } from "@signapse/shared";
+import {
+  ZONE_LABELS,
+  assessUtterance,
+  spokenParts,
+  voiceTone,
+  type Encounter,
+  type StoredUtterance,
+} from "@signapse/shared";
 import { speak, speechSupported, unlockVoice } from "../../language/speak";
 import { chime, unlockChime } from "../../language/chime";
 import {
@@ -19,10 +26,6 @@ import { PainList } from "../../components/bodymap/PainList";
 import { usePainMap } from "../../components/bodymap/usePainMap";
 import { usePointing } from "../../components/bodymap/usePointing";
 import { UtteranceLine, mergeLines } from "../../components/conversation/UtteranceLine";
-
-function spokenText(u: StoredUtterance) {
-  return assessUtterance(u).needsConfirm ? `${u.sentence} Please confirm with the patient.` : u.sentence;
-}
 
 // Clinician screen: each sentence with its facial grammar, an urgent banner
 // with chime and voice, confirm buttons, and the patient's body map with where
@@ -66,7 +69,7 @@ export function ClinicianPage() {
     if (urgent) setAlert(u);
     if (voiceOn && u.speaker === "patient") {
       const wait = urgent ? chime() : 0;
-      setTimeout(() => speak(spokenText(u), { urgent }), wait);
+      setTimeout(() => speak(spokenParts(u)), wait);
     }
   });
 
@@ -180,12 +183,17 @@ export function ClinicianPage() {
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button
                   className="btn dark"
-                  onClick={() => speak(spokenText(latest), { urgent: assessUtterance(latest).urgent })}
+                  onClick={() => speak(spokenParts(latest))}
                   disabled={!speechSupported}
                 >
                   <Icon name="speaker" size={17} />
                   Speak again
                 </button>
+                {latest.speaker === "patient" && (
+                  <span className="chip tone" title="Voice tone, set from the patient's facial expression">
+                    Tone: {voiceTone(latest).label}
+                  </span>
+                )}
                 {assessUtterance(latest).unconfirmed && (
                   <button className="btn" onClick={() => confirm(latest.id)}>
                     <Icon name="check" size={17} />

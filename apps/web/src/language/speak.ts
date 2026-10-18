@@ -1,18 +1,18 @@
-// Text to speech for the clinician screen, using the browser's built-in voices.
-// Nothing is sent off the device. Browsers block audio until the user has
-// interacted with the page, so call unlockVoice() from a click first.
+// Text to speech for the clinician screen, using the browser's own voices.
+// Only on-device voices are used, so the sentence text stays on this computer
+// (Edge's "Natural" and Chrome's "Google" voices are online and would send it
+// to Microsoft or Google). Browsers block audio until the user has interacted
+// with the page, so call unlockVoice() from a click first.
+
+import type { VoiceTone } from "@signapse/shared";
 
 export const speechSupported = typeof window !== "undefined" && "speechSynthesis" in window;
 
 let voice: SpeechSynthesisVoice | null = null;
 
 function pickVoice() {
-  const voices = speechSynthesis.getVoices();
-  // Prefer a natural-sounding English voice when the browser has one.
-  voice =
-    voices.find((v) => v.lang.startsWith("en") && /natural|google|aria|jenny/i.test(v.name)) ??
-    voices.find((v) => v.lang.startsWith("en")) ??
-    null;
+  const english = speechSynthesis.getVoices().filter((v) => v.lang.startsWith("en") && v.localService);
+  voice = english.find((v) => /aria|jenny|zira|samantha/i.test(v.name)) ?? english[0] ?? null;
 }
 
 if (speechSupported) {
@@ -29,13 +29,22 @@ export function unlockVoice() {
   speechSynthesis.speak(u);
 }
 
-export function speak(text: string, opts: { urgent?: boolean } = {}) {
-  if (!speechSupported || !text) return;
+// Speaks each part in its own tone (pitch, rate, volume), one after another.
+export function speak(parts: { text: string; tone: VoiceTone }[]) {
+  if (!speechSupported || !parts.length) return;
+  // No on-device English voice: stay silent rather than send the text away.
+  if (!voice) pickVoice();
+  if (!voice) return;
   // Say the newest sentence now rather than queueing behind older ones.
   speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(opts.urgent ? `Urgent. ${text}` : text);
-  if (voice) u.voice = voice;
-  u.lang = voice?.lang ?? "en-US";
-  u.rate = 0.95;
-  speechSynthesis.speak(u);
+  for (const { text, tone } of parts) {
+    if (!text) continue;
+    const u = new SpeechSynthesisUtterance(text);
+    u.voice = voice;
+    u.lang = voice.lang;
+    u.pitch = tone.pitch;
+    u.rate = tone.rate;
+    u.volume = tone.volume;
+    speechSynthesis.speak(u);
+  }
 }
