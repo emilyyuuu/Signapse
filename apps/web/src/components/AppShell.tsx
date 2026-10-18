@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import type { Encounter } from "@signapse/shared";
 import { Logo } from "./brand";
 
-type Screen = "visits" | "patient" | "clinician" | "review";
+type Screen = "visits" | "patient" | "clinician" | "review" | "call";
 
 interface Props {
   screen: Screen;
@@ -19,13 +19,15 @@ const SCREEN_LABEL: Record<Screen, string> = {
   patient: "Patient",
   clinician: "Clinician",
   review: "Review",
+  call: "Call",
 };
 
 // Shared header for every screen: brand, visit token, live status and
 // navigation. The patient screen is a kiosk, so it gets no navigation and
-// can't wander into the clinician's screens.
+// can't wander into the clinician's screens. Call screens are used by the
+// patient and an outside doctor, so they get none either.
 export function AppShell({ screen, encounter, connected, actions, children }: Props) {
-  const kiosk = screen === "patient";
+  const kiosk = screen === "patient" || screen === "call";
   const status = encounter?.endedAt
     ? { cls: "is-ended", text: "Visit ended" }
     : connected === undefined

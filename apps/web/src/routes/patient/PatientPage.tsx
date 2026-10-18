@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import {
   ZONE_LABELS,
-  signedLevel,
-  viewOf,
   type BodyView,
   type DraftView,
   type Encounter,
@@ -20,8 +18,8 @@ import { CheckIn } from "../../components/visit/CheckIn";
 import { BodyMap } from "../../components/bodymap/BodyMap";
 import { SeverityPicker } from "../../components/bodymap/SeverityPicker";
 import { PainList } from "../../components/bodymap/PainList";
-import { usePainMap } from "../../components/bodymap/usePainMap";
-import { usePointing } from "../../components/bodymap/usePointing";
+import { PointConfirm } from "../../components/bodymap/PointConfirm";
+import { usePainFlow } from "../../components/bodymap/usePainFlow";
 
 const OUTCOME_TEXT: Record<PatientAction, string> = {
   sent: "Sent to the doctor.",
@@ -35,15 +33,8 @@ const VIEW_NAMES: Record<BodyView, string> = { front: "Front", back: "Back", fac
 // Patient station. Camera and sign chips come later; for now: the body map.
 export function PatientPage() {
   const encounterId = encounterIdFromUrl();
-  const { pain, apply, report } = usePainMap(encounterId);
-  const [view, setView] = useState<BodyView>("front");
-  const [selected, setSelected] = useState<string>();
-  const [sendFailed, setSendFailed] = useState(false);
-  const { pointed, handle: handlePoint, clear: clearPoint } = usePointing();
-  // The selection came from the camera, so the reading is saved as "pointing".
-  const [fromPointing, setFromPointing] = useState(false);
-  // Set when the level came from a signed number, so the patient can check it.
-  const [signed, setSigned] = useState<{ zone: string; level: number }>();
+  const flow = usePainFlow(encounterId);
+  const { pain, view, setView, selected, pointed, fromPointing, signed, sendFailed, pick, tap } = flow;
 
   const [encounter, setEncounter] = useState<Encounter>();
   // A signed clause waiting for the patient to check it, and the outcome shown afterwards.
@@ -67,57 +58,26 @@ export function PatientPage() {
       .catch((err) => console.warn(err));
   }, [encounterId]);
 
-  // Keeps this screen in sync if another device (or the camera) reports pain.
-  // Pointing at a body part opens the pain level for it straight away.
+  // Keeps this screen in sync if another device (or the camera) reports pain,
+  // and shows a signed clause for the patient to check before it is sent.
   const { connected } = useRoom(
     encounterId,
     (msg) => {
-    if (msg.type === "pain") apply(msg.data);
-    if (msg.type === "ended" || msg.type === "encounter") setEncounter(msg.data);
-    if (msg.type === "draft") {
-      setDraft(msg.data);
-      setDraftError(undefined);
-      setOutcome(undefined);
-    }
-    if (msg.type === "draft_closed") {
-      setDraft((d) => (d && d.id === msg.data.id ? undefined : d));
-      setDraftBusy(false);
-      setOutcome(OUTCOME_TEXT[msg.data.action]);
-    }
-    // A signed number sets the level for the body part that is selected.
-    if (msg.type === "utterance" && msg.data.speaker === "patient" && msg.data.gloss && selected) {
-      const level = signedLevel(msg.data.gloss);
-      if (level !== undefined) {
-        setSigned({ zone: selected, level });
-        void pick(level);
-        return;
+      if (msg.type === "ended" || msg.type === "encounter") setEncounter(msg.data);
+      if (msg.type === "draft") {
+        setDraft(msg.data);
+        setDraftError(undefined);
+        setOutcome(undefined);
       }
-    }
-    const zone = handlePoint(msg);
-    if (zone) {
-      // Pointing only shows what the camera found. A nod confirms it and opens the pain scale.
-      setView(viewOf(zone));
-      setSelected(undefined);
-      setFromPointing(false);
-    }
-    if (msg.type === "gesture") {
-      if (msg.data.gesture === "nod" && pointed && !selected) confirmPointed();
-      if (msg.data.gesture === "shake") cancelPointed();
-    }
-  },
-    "patient",
+      if (msg.type === "draft_closed") {
+        setDraft((d) => (d && d.id === msg.data.id ? undefined : d));
+        setDraftBusy(false);
+        setOutcome(OUTCOME_TEXT[msg.data.action]);
+      }
+      flow.handle(msg);
+    },
+    { role: "patient" },
   );
-
-  // One tap sets the level and closes the picker; the map shows the result.
-  const pick = async (severity: number) => {
-    if (!selected) return;
-    const zone = selected;
-    const source = fromPointing ? "pointing" : "tap";
-    setSelected(undefined);
-    setFromPointing(false);
-    clearPoint();
-    setSendFailed(!(await report(zone, severity, source)));
-  };
 
   const run = async (fn: () => Promise<{ ok: boolean; error?: string }>) => {
     setDraftBusy(true);
@@ -132,28 +92,6 @@ export function PatientPage() {
     draft && run(() => editDraft(encounterId, draft.id, change));
   const onHold = () => {
     if (draft) void holdDraft(encounterId, draft.id);
-  };
-
-  // Nod, or the Yes button: the body part the camera found is right, so ask for the number.
-  const confirmPointed = () => {
-    if (!pointed) return;
-    setSelected(pointed.zone);
-    setFromPointing(true);
-  };
-
-  // Shake, or the No button: that was not it. Clear it so the patient can point again.
-  const cancelPointed = () => {
-    clearPoint();
-    if (fromPointing) setSelected(undefined);
-    setFromPointing(false);
-  };
-
-  // Tapping another zone corrects a misread point.
-  const tap = (zone: string) => {
-    clearPoint();
-    setSigned(undefined);
-    setSelected(zone);
-    setFromPointing(false);
   };
 
   if (encounter?.endedAt) {
@@ -231,22 +169,7 @@ export function PatientPage() {
             </p>
           )}
           {pointed && !selected && (
-            <div className="panel confirm-card" role="status" aria-live="polite">
-              <p className="eyebrow">The camera found</p>
-              <p className="confirm-zone">{ZONE_LABELS[pointed.zone] ?? pointed.zone}</p>
-              <p className="muted" style={{ margin: "0 0 14px" }}>
-                Is that right? <strong>Nod twice</strong> for yes, <strong>shake your head</strong> to point again, or use the
-                buttons.
-              </p>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <button className="btn primary big" onClick={confirmPointed}>
-                  Yes, that&apos;s it
-                </button>
-                <button className="btn big" onClick={cancelPointed}>
-                  No, try again
-                </button>
-              </div>
-            </div>
+            <PointConfirm zone={pointed.zone} onYes={flow.confirmPointed} onNo={flow.cancelPointed} />
           )}
           {fromPointing && selected && (
             <p className="callout" role="status">

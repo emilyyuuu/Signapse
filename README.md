@@ -140,9 +140,25 @@ curl -X POST http://localhost:8787/clauses -H "Content-Type: application/json" -
 
 Pointing: the vision process POSTs `{encounterId, zone, confidence}` to `/point`. It isn't stored, only broadcast as a `point` room message, and `usePointing` in `apps/web/src/components/bodymap/` turns it into the highlighted zone. The record is the clause gloss (`POINT-<ZONE>`, read by `complaintOf` in `packages/shared/src/language.ts`) and the pain reading the patient confirms (`source: "pointing"`). Zone ids and shapes are in `BODY_VIEWS` in `packages/shared/src/bodyZones.ts`.
 
+## Call mode
+
+For a patient who needs to reach a hospital or doctor remotely. On the start page, choose **Call a doctor**. That starts a visit and opens `/call?e=<id>`. The patient sends the doctor the link shown there (`/call/doctor?e=<id>`). The doctor opens it in Chrome or Edge, clicks **Join call** and waits until the patient lets them in.
+
+- **Patient → doctor:** the patient signs to the camera. `apps/pointing` posts clauses exactly as in a visit. The doctor sees each sentence as a caption over the patient's video, and it is read aloud, with a chime when it is urgent. The patient can also type.
+- **Doctor → patient:** the doctor's speech is captioned live on the patient's screen in large text. Finished sentences are saved as clinician replies. A reply that ends in `?` gives the patient big YES/NO buttons.
+- The call is an ordinary encounter, so the review screen and chart note cover it.
+
+**Encryption.** Audio, video and live captions go peer to peer over WebRTC and are encrypted end to end between the two browsers (DTLS-SRTP, plus a data channel for captions). The API only relays the setup messages (`signal` in the room socket), validated and rate limited, and it never sees media or live captions. More protections:
+- The patient has to **admit** the doctor, and each room allows one patient and one doctor socket, so a third person with the link is refused.
+- Both screens show a **safety code** made from the two DTLS fingerprints. If the codes match, nobody, the server included, is in the middle.
+
+The server still sees and stores the finished sentences, as it does for visits, so they can be charted. Doctor captions use on-device speech recognition when the browser offers it (`processLocally`). Otherwise the page tells the doctor that their voice goes to the browser's speech service and offers typing instead.
+
+The sign-reading program usually holds the webcam, so the patient's call video is its local preview drawn onto a canvas. Without the program, **Video only** uses the webcam directly. Calls between networks that block direct connections need a TURN relay (`VITE_TURN_URL`, `VITE_TURN_USER`, `VITE_TURN_PASS`). Calls need HTTPS outside localhost.
+
 ## Non-negotiables
 
-- **Privacy:** camera frames and landmarks are processed in the local vision process and discarded. The API rejects anything that isn't text or numbers. The only personal data is the patient's name, typed at check-in on the patient station and stored in its own column (`encounters.patient_name`); the key is an internal uuid, and screens also show a token like PT-7K3Q. The name is never sent to Gemini (sentences are built from sign labels, and the AI note summary refuses to run if the visit text mentions the name), never put in a URL or a log, and demos use fake names. Signapse is not HIPAA compliant and not a substitute for a qualified interpreter. The UI shows a live "video frames sent: 0" counter. Chrome's `SpeechRecognition` sends audio to the cloud, so don't use it outside a clearly labelled stand-in.
+- **Privacy:** camera frames and landmarks are processed in the local vision process and discarded. The API rejects anything that isn't text or numbers. Patients are tokens, not names. The UI shows a live "video frames sent: 0" counter. In call mode the patient's video goes only to the doctor, peer to peer and encrypted (see Call mode). Chrome's `SpeechRecognition` sends audio to the cloud, so don't use it outside a clearly labelled stand-in.
 - **Safety:** a wrong meaning is a clinical risk, so lines that depend on a marker need clinician confirmation before charting. Signapse does not replace qualified interpreters and is not HIPAA/PHIPA compliant.
 - **Demo resilience:** wizard mode (an operator triggers signs through the same pipeline) must work end to end before hour 8. Event writes are queued and must never block the UI.
 
