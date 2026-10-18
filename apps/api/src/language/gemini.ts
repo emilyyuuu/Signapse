@@ -39,6 +39,7 @@ Rules:
   intensified with strong cues = "severe"; intensified with mild cues = "significant".
   Never let the cues change the meaning set by the flag.
 - Never mention the face, eyebrows, head movement or the flag in the sentence. The clinician sees those separately.
+- NUM-<n> (NUM-0 to NUM-10) is the patient rating their pain n out of 10; write it as "The patient rates the pain n out of 10." and never change the number.
 - POINT-<ZONE> means the patient pointed at or touched that part of their own body. L/R prefixes are the patient's left/right: POINT-LCHEST = left side of the chest, POINT-LKNEE = left knee, POINT-RUQ / LUQ / RLQ / LLQ = right/left upper/lower abdominal quadrant, POINT-NAVEL = around the navel, POINT-REYE = right eye. With BACK, it is the back of that area.
 - If the gloss is unclear, stay literal rather than guessing.
 - One sentence, under 25 words, plain clinical English.`;

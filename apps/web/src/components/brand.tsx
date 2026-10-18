@@ -88,6 +88,12 @@ const ICONS = {
       <path d="M12 10v4M12 17.5v.5" />
     </>
   ),
+  lock: (
+    <>
+      <rect x="5" y="11" width="14" height="10" rx="2" />
+      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+    </>
+  ),
   list: <path d="M8 7h12M8 12h12M8 17h12M4 7h.01M4 12h.01M4 17h.01" />,
 } satisfies Record<string, ReactNode>;
 

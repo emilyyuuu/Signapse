@@ -126,3 +126,30 @@ export async function postPain(reading: PainReading): Promise<boolean> {
     return false;
   }
 }
+
+// Starts and stops the pointing camera (apps/pointing) on the computer the API
+// runs on. Only works from that computer, and only when LOCAL_CAMERA=true.
+export interface CameraStatus {
+  available: boolean;
+  running: boolean;
+  encounterId?: string;
+  exited?: { code: number | null };
+  log: string[];
+}
+
+async function cameraCall<T>(path: string, body?: unknown): Promise<{ ok: boolean; status: number; data: T & { error?: string } }> {
+  try {
+    const res = await fetch(`${API_URL}${path}`, {
+      method: body === undefined ? "GET" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    return { ok: res.ok, status: res.status, data: await res.json().catch(() => ({}) as T & { error?: string }) };
+  } catch {
+    return { ok: false, status: 0, data: { error: "Can't reach the server." } as T & { error?: string } };
+  }
+}
+
+export const startCamera = (encounterId: string) => cameraCall<{ running?: boolean }>("/camera/start", { encounterId });
+export const stopCamera = () => cameraCall<{ running?: boolean }>("/camera/stop", {});
+export const cameraStatus = () => cameraCall<CameraStatus>("/camera/status");
