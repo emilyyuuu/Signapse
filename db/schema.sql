@@ -1,4 +1,4 @@
--- Synapse conversation log for Tiger Cloud (Postgres + TimescaleDB)
+-- Signapse conversation log for Tiger Cloud (Postgres + TimescaleDB)
 -- Stores text and structured events only. Video and landmarks never leave the device.
 
 CREATE TABLE encounters (

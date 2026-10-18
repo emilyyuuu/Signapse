@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { assessUtterance, describeFace, type GrammarFlag, type StoredUtterance } from "@synapse/shared";
+import { assessUtterance, describeFace, type GrammarFlag, type StoredUtterance } from "@signapse/shared";
+import { Icon } from "../brand";
 
 export const FLAG_LABEL: Record<GrammarFlag, string> = {
   statement: "Statement",
@@ -8,7 +9,7 @@ export const FLAG_LABEL: Record<GrammarFlag, string> = {
   intensified: "Emphasis",
 };
 
-const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
 // Merges two lists of lines by id (a confirmed copy replaces the original), oldest first.
 export function mergeLines(a: StoredUtterance[], b: StoredUtterance[]) {
@@ -22,8 +23,9 @@ export function faceSummary(u: StoredUtterance) {
     : undefined;
 }
 
-// One conversation line: sentence, chips, raw signs, what the face showed, and
-// a Confirm button while the meaning is unconfirmed.
+// One conversation line as a chat bubble: patient lines (translated from
+// signing) on the left beside the orb, clinician lines on the right. Chips
+// show urgency and grammar; a Confirm button shows while meaning is unconfirmed.
 export function UtteranceLine({
   u,
   onConfirm,
@@ -33,6 +35,7 @@ export function UtteranceLine({
 }) {
   const { urgent, needsConfirm, confirmed } = assessUtterance(u);
   const face = faceSummary(u);
+  const fromClinician = u.speaker === "clinician";
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
 
@@ -44,34 +47,48 @@ export function UtteranceLine({
   };
 
   return (
-    <li className={`line${urgent ? " urgent" : ""}`}>
-      <div>{u.sentence}</div>
-      <div className="meta">
-        <small className="muted">{time(u.ts)}</small>
-        {u.speaker === "clinician" && <span className="chip">Clinician</span>}
-        {urgent && <span className="chip urgent">Urgent</span>}
-        {u.grammarFlag && <span className="chip flag">{FLAG_LABEL[u.grammarFlag]}</span>}
-        {confirmed ? (
-          <span className="chip ok">
-            ✓ Confirmed by {u.verifiedBy}
-            {u.verifiedAt ? `, ${time(u.verifiedAt)}` : ""}
-          </span>
-        ) : (
-          needsConfirm && (
-            <>
-              <span className="chip confirm">⚠ Confirm meaning</span>
-              {onConfirm && (
-                <button className="btn small" onClick={confirm} disabled={busy}>
-                  {busy ? "Saving…" : "Confirm"}
-                </button>
-              )}
-              {failed && <span className="chip urgent">Not saved, try again</span>}
-            </>
-          )
-        )}
-        {u.gloss && <span className="gloss">{u.gloss.join(" ")}</span>}
+    <li className={`msg ${fromClinician ? "from-clinician" : "from-patient"}`}>
+      {fromClinician ? (
+        <span className="icon-btn avatar" aria-hidden="true">
+          <Icon name="user" size={16} />
+        </span>
+      ) : (
+        <span className="avatar patient-avatar" aria-hidden="true">
+          <Icon name="hands" size={16} />
+        </span>
+      )}
+      <div className={`bubble${urgent ? " urgent" : ""}`}>
+        <div>{u.sentence}</div>
+        <div className="meta">
+          <small className="muted">{time(u.ts)}</small>
+          {urgent && (
+            <span className="chip urgent">
+              <Icon name="alert" size={12} /> Urgent
+            </span>
+          )}
+          {u.grammarFlag && <span className="chip flag">{FLAG_LABEL[u.grammarFlag]}</span>}
+          {confirmed ? (
+            <span className="chip ok">
+              <Icon name="check" size={12} /> Confirmed by {u.verifiedBy}
+              {u.verifiedAt ? `, ${time(u.verifiedAt)}` : ""}
+            </span>
+          ) : (
+            needsConfirm && (
+              <>
+                <span className="chip confirm">Confirm meaning</span>
+                {onConfirm && (
+                  <button className="btn small" onClick={confirm} disabled={busy}>
+                    {busy ? "Saving…" : "Confirm"}
+                  </button>
+                )}
+                {failed && <span className="chip urgent">Not saved, try again</span>}
+              </>
+            )
+          )}
+          {u.gloss && <span className="gloss">{u.gloss.join(" ")}</span>}
+        </div>
+        {face && <div className="face">Face: {face}</div>}
       </div>
-      {face && <div className="face">Face: {face}</div>}
     </li>
   );
 }

@@ -10,7 +10,7 @@ import {
   type PainReading,
   type StoredPainReading,
   type StoredUtterance,
-} from "@synapse/shared";
+} from "@signapse/shared";
 
 export const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8787";
 

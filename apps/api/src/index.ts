@@ -50,7 +50,7 @@ app.route("/", reviewRoutes(store, gemini));
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(
-    `Synapse API on :${info.port} (store: ${store.kind}, sentences: ${gemini ? gemini.model : "templates only"})`,
+    `Signapse API on :${info.port} (store: ${store.kind}, sentences: ${gemini ? gemini.model : "templates only"})`,
   );
 });
 attachRooms(server as Server, allowedOrigins);

@@ -1,4 +1,4 @@
-import { ZONE_LABELS } from "@synapse/shared";
+import { ZONE_LABELS } from "@signapse/shared";
 
 interface Props {
   zone: string;
@@ -11,9 +11,7 @@ interface Props {
 export function SeverityPicker({ zone, value, onPick }: Props) {
   return (
     <div className="panel" role="group" aria-label={`Pain level for ${ZONE_LABELS[zone]}`}>
-      <p style={{ margin: "0 0 12px", fontSize: 20, fontWeight: 600 }}>
-        How much does your {ZONE_LABELS[zone].toLowerCase()} hurt?
-      </p>
+      <h2 style={{ margin: "0 0 16px", fontSize: 22 }}>How much does your {ZONE_LABELS[zone].toLowerCase()} hurt?</h2>
       <div className="severity">
         {Array.from({ length: 11 }, (_, n) => (
           <button key={n} aria-pressed={value === n} onClick={() => onPick(n)}>

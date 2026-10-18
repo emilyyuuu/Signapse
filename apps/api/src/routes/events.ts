@@ -1,7 +1,7 @@
 import { randomInt } from "node:crypto";
 import { Hono } from "hono";
 import { z } from "zod";
-import { ZONE_IDS } from "@synapse/shared";
+import { ZONE_IDS } from "@signapse/shared";
 import type { Store } from "../db/client.js";
 import { broadcast } from "../ws/rooms.js";
 import { confidenceSchema, grammarFlagSchema, nmmSchema } from "./schemas.js";

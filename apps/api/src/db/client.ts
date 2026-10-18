@@ -8,7 +8,7 @@ import {
   type StoredPainReading,
   type StoredUtterance,
   type UtteranceEvent,
-} from "@synapse/shared";
+} from "@signapse/shared";
 
 export interface Store {
   kind: "tiger" | "memory";

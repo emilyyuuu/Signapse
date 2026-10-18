@@ -1,6 +1,6 @@
 // One-time database setup: applies db/schema.sql (if not applied yet) and the
 // seed files to the database in DATABASE_URL. Safe to run more than once.
-//   npm run db:setup -w @synapse/api
+//   npm run db:setup -w @signapse/api
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { config } from "dotenv";

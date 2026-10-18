@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import type { ClauseResult } from "@synapse/shared";
+import type { ClauseResult } from "@signapse/shared";
 import type { Store } from "../db/client.js";
 import type { GeminiConfig } from "../language/gemini.js";
 import { translateClause } from "../language/translate.js";

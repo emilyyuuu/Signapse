@@ -1,5 +1,5 @@
 {
-  "name": "@synapse/web",
+  "name": "@signapse/web",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -9,7 +9,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@synapse/shared": "*",
+    "@fontsource-variable/inter": "^5.2.8",
+    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "@signapse/shared": "*",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
