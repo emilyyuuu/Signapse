@@ -1,14 +1,22 @@
-from os import error
+"""Webcam source and the MediaPipe Hand Landmarker. Frames stay in this process."""
+
+from __future__ import annotations
+
 import threading
+import time
+from collections.abc import Iterator
+from pathlib import Path
+
+import cv2 as cv
+import mediapipe as mp
+import numpy as np
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 from mediapipe.tasks.python.vision.hand_landmarker import HandLandmarkerResult
-from pathlib import Path
-import mediapipe as mp
-import numpy as np
-import cv2 as cv
 
-MODEL_PATH = Path(__file__).parent / "LandmarkModel" / "hand_landmarker.task"
+from .datatypes import FrameSource, VideoFrame
+from .paths import HAND_MODEL
+
 HAND_CONNECTIONS = [
     (0, 1),
     (1, 2),
@@ -34,8 +42,46 @@ HAND_CONNECTIONS = [
 ]
 
 
+def _require(model_path: Path) -> None:
+    if not model_path.exists():
+        raise FileNotFoundError(f"{model_path} not found. Run apps/sign_recognition/scripts/fetch_models.sh first.")
+
+
+class WebcamSource(FrameSource):
+    def __init__(self, camera_index: int = 0):
+        self.camera = cv.VideoCapture(camera_index)
+
+        if not self.camera.isOpened():
+            raise RuntimeError(f"Could not open camera index {camera_index}")
+
+        self.source_id = f"webcam-{camera_index}"
+
+    def frames(self) -> Iterator[VideoFrame]:
+        last_ms = -1
+        while True:
+            ok, image = self.camera.read()
+
+            if not ok:
+                print("The camera is not okay")
+                break
+
+            # MediaPipe needs strictly increasing timestamps.
+            timestamp_ms = max(time.monotonic_ns() // 1_000_000, last_ms + 1)
+            last_ms = timestamp_ms
+            yield VideoFrame(
+                image=cv.flip(image, 1),
+                timestamp_ms=timestamp_ms,
+                source_id=self.source_id,
+            )
+
+    def close(self) -> None:
+        self.camera.release()
+        cv.destroyAllWindows()
+
+
 class Landmark:
-    def __init__(self, model_path: Path = MODEL_PATH, num_hands: int = 2) -> None:
+    def __init__(self, model_path: Path = HAND_MODEL, num_hands: int = 2) -> None:
+        _require(model_path)
         self._lock = threading.Lock()
         self._result: HandLandmarkerResult | None = None
 

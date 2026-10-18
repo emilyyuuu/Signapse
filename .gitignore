@@ -16,3 +16,4 @@ __pycache__/
 .pytest_cache/
 apps/facial_grammar/models/
 apps/pointing/models/
+apps/sign_recognition/models/

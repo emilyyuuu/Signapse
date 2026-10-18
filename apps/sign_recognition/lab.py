@@ -1,6 +1,15 @@
-from sources.webcam import WebcamSource
-from vision.landmarks import Landmark
+"""Sign recognition lab: webcam preview with the hand skeleton drawn on it.
+
+Run with ``python -m sign_recognition.lab``. Keys:
+  q       quit
+Nothing is sent anywhere yet; recognition (normalize, segment, dtw, knn, pipeline) is next.
+"""
+
+from __future__ import annotations
+
 import cv2 as cv
+
+from .capture import Landmark, WebcamSource
 
 
 def main() -> None:

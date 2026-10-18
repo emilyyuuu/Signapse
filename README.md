@@ -10,7 +10,7 @@ This is a hackathon project (about 36 hours). The full plan, a clickable prototy
 
 ## How it works
 
-1. **Sign recognition (on device).** MediaPipe `HandLandmarker` and `FaceLandmarker` run in a local Python process on the patient laptop (`apps/facial_grammar`). Hand landmarks are normalized (subtract the wrist position, divide by hand size) and split into segments by hand speed. Each segment is matched against recorded templates with DTW + k-NN. The vocabulary is about 30 isolated clinical ASL signs, about 20 takes each, stored as landmark JSON only, never video.
+1. **Sign recognition (on device).** MediaPipe `HandLandmarker` and `FaceLandmarker` run in a local Python process on the patient laptop (`apps/sign_recognition`, next to `apps/facial_grammar`). Hand landmarks are normalized (subtract the wrist position, divide by hand size) and split into segments by hand speed. Each segment is matched against recorded templates with DTW + k-NN. The vocabulary is about 30 isolated clinical ASL signs, about 20 takes each, stored as landmark JSON only, never video.
 2. **Facial grammar engine (on device).** This is the core feature. A neutral-face calibration stores a baseline for each patient. Over each clause window, `browInnerUp`/`browOuterUp`/`browDown`/`eyeSquint` blendshapes and head yaw/pitch are mapped to one of four flags: `statement`, `question` (brows raised for more than ~300 ms), `negation` (2 or more yaw reversals) or `intensified` (furrow or squint). The rules are plain Python (`apps/facial_grammar/`), not a model.
 3. **Clinical sentence processor.** A phrase table keyed by complaint fills a sentence template for each flag. An optional Claude Haiku rewrite works on redacted text only and falls back to the template after 1 s. Output is spoken with `speechSynthesis` and saved as structured fields. Any meaning that depends on a facial marker is flagged for the clinician to confirm.
 4. **Clinician reply.** Typed replies (in-browser Whisper dictation is a stretch goal) are rewritten in plain language and matched to icons. A reply ending in `?` shows large YES/NO buttons, and the patient's tap is logged.
@@ -46,6 +46,16 @@ apps/pointing/        Python package `pointing`: point at your own body -> body-
   api_client.py       posts /point and /clauses (text only) on a background thread
   lab.py              live pointing lab
   scripts/            fetch_models.sh downloads models/ (gitignored)
+apps/sign_recognition/  Python package `sign_recognition`: hand landmarks -> sign labels (DTW + k-NN)
+  capture.py          webcam source + MediaPipe Hand Landmarker
+  datatypes.py        VideoFrame, FrameSource
+  normalize.py        wrist-relative, hand-size-scaled landmarks (to do)
+  segment.py          split by hand speed into sign segments (to do)
+  dtw.py, knn.py      match segments against data/signs templates (to do)
+  pipeline.py         camera -> SignEvent (to do)
+  explore.py          template quality checks (pandas, optional `[explore]`)
+  lab.py              live preview with the hand skeleton
+  scripts/            fetch_models.sh downloads models/ (gitignored)
 apps/web/             React + Vite frontend
   src/routes/         patient, clinician, review screens
   src/language/       phrase table, sentence templates, plain-language replies
@@ -73,6 +83,15 @@ scripts/fetch_models.sh
 ```
 
 Grammar thresholds are in `apps/facial_grammar/datatypes.py`. Tune them against recorded clips.
+
+## Running sign recognition
+
+```
+cd apps/sign_recognition && python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
+scripts/fetch_models.sh
+.venv/bin/pytest
+.venv/bin/python -m sign_recognition.lab   # hand skeleton preview, q quit
+```
 
 ## Running pointing
 
