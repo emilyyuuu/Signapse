@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { assessUtterance, type Encounter, type StoredUtterance } from "@signapse/shared";
+import { ZONE_LABELS, assessUtterance, type Encounter, type StoredUtterance } from "@signapse/shared";
 import { speak, speechSupported, unlockVoice } from "../../language/speak";
 import { chime, unlockChime } from "../../language/chime";
 import {
@@ -16,6 +16,7 @@ import { PageHeader } from "../../components/PageHeader";
 import { BodyMap } from "../../components/bodymap/BodyMap";
 import { PainList } from "../../components/bodymap/PainList";
 import { usePainMap } from "../../components/bodymap/usePainMap";
+import { usePointing } from "../../components/bodymap/usePointing";
 import { UtteranceLine, mergeLines } from "../../components/conversation/UtteranceLine";
 
 function spokenText(u: StoredUtterance) {
@@ -23,7 +24,8 @@ function spokenText(u: StoredUtterance) {
 }
 
 // Clinician screen: each sentence with its facial grammar, an urgent banner
-// with chime and voice, confirm buttons, and the patient's body map, all live.
+// with chime and voice, confirm buttons, and the patient's body map with where
+// they are pointing, all live.
 export function ClinicianPage() {
   const encounterId = encounterIdFromUrl();
   const [lines, setLines] = useState<StoredUtterance[]>([]);
@@ -32,6 +34,7 @@ export function ClinicianPage() {
   const [voiceOn, setVoiceOn] = useState(false);
   const [busy, setBusy] = useState(false);
   const { pain, apply } = usePainMap(encounterId);
+  const { pointed, handle: handlePoint } = usePointing();
 
   // Past sentences, so a refresh doesn't empty the log.
   useEffect(() => {
@@ -44,6 +47,8 @@ export function ClinicianPage() {
   }, [encounterId]);
 
   const { connected } = useRoom(encounterId, (msg) => {
+    handlePoint(msg);
+    if (msg.type === "point") return;
     if (msg.type === "pain") {
       apply(msg.data);
       return;
@@ -198,7 +203,7 @@ export function ClinicianPage() {
             <section className="panel chat-panel">
               <div className="section-head" style={{ marginTop: 0 }}>
                 <h2 className="section-title">Conversation</h2>
-                <span className="muted">{lines.length} lines</span>
+                <span className="muted">{lines.length} {lines.length === 1 ? "line" : "lines"}</span>
               </div>
               <ol className="chat">
                 {[...lines].reverse().map((u) => (
@@ -211,12 +216,30 @@ export function ClinicianPage() {
 
         <section className="panel pop pop-blue" style={{ flex: "1 1 320px" }} aria-label="Patient body map">
           <h2 className="section-title">Pain map</h2>
+          {pointed && (
+            <p className="callout" role="status">
+              {pointed.gesture === "touch" ? "Touched" : "Pointing at"}: <strong>{ZONE_LABELS[pointed.zone]}</strong>
+              {pointed.complaint && <> · {pointed.complaint}</>}
+              {pointed.gesture === "touch" && !pointed.confirmed ? (
+                <> · not confirmed, the patient is checking it</>
+              ) : pain[pointed.zone] ? (
+                <> · {pain[pointed.zone]}/10</>
+              ) : (
+                <> · severity not rated yet</>
+              )}
+            </p>
+          )}
           <div className="row" style={{ gap: 8, justifyContent: "center" }}>
-            {(["front", "back"] as const).map((v) => (
-              <figure key={v} style={{ margin: 0, flex: "1 1 120px", maxWidth: 170 }}>
-                <BodyMap view={v} pain={pain} />
+            {(["front", "back", "face"] as const).map((v) => (
+              <figure key={v} style={{ margin: 0, flex: "1 1 100px", maxWidth: 150 }}>
+                <BodyMap
+                  view={v}
+                  pain={pain}
+                  highlighted={pointed?.zone}
+                  tentative={pointed?.gesture === "touch" && !pointed.confirmed}
+                />
                 <figcaption className="muted" style={{ textAlign: "center", fontSize: 13 }}>
-                  {v === "front" ? "Front" : "Back"}
+                  {v === "front" ? "Front" : v === "back" ? "Back" : "Face"}
                 </figcaption>
               </figure>
             ))}

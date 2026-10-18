@@ -120,7 +120,7 @@ export function ReviewPage() {
         <section className="panel chat-panel" style={{ flex: "1 1 420px" }}>
           <div className="section-head" style={{ marginTop: 0 }}>
             <h2 className="section-title">Conversation</h2>
-            <span className="muted">{utterances.length} lines</span>
+            <span className="muted">{utterances.length} {utterances.length === 1 ? "line" : "lines"}</span>
           </div>
           {utterances.length === 0 ? (
             <div className="empty">

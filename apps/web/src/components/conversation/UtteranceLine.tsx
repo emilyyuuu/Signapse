@@ -1,5 +1,12 @@
 import { useState } from "react";
-import { assessUtterance, describeFace, type GrammarFlag, type StoredUtterance } from "@signapse/shared";
+import {
+  ZONE_LABELS,
+  assessUtterance,
+  describeFace,
+  pointedZone,
+  type GrammarFlag,
+  type StoredUtterance,
+} from "@signapse/shared";
 import { Icon } from "../brand";
 
 export const FLAG_LABEL: Record<GrammarFlag, string> = {
@@ -36,6 +43,7 @@ export function UtteranceLine({
   const { urgent, needsConfirm, confirmed } = assessUtterance(u);
   const face = faceSummary(u);
   const fromClinician = u.speaker === "clinician";
+  const pointed = u.gloss ? pointedZone(u.gloss) : undefined;
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
 
@@ -84,6 +92,11 @@ export function UtteranceLine({
                 {failed && <span className="chip urgent">Not saved, try again</span>}
               </>
             )
+          )}
+          {pointed && (
+            <span className="chip flag">
+              <Icon name="body" size={12} /> Pointed: {ZONE_LABELS[pointed] ?? pointed}
+            </span>
           )}
           {u.gloss && <span className="gloss">{u.gloss.join(" ")}</span>}
         </div>
