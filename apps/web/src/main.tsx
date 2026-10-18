@@ -4,6 +4,8 @@ import { HomePage } from "./routes/HomePage";
 import { ClinicianPage } from "./routes/clinician/ClinicianPage";
 import { PatientPage } from "./routes/patient/PatientPage";
 import { ReviewPage } from "./routes/review/ReviewPage";
+import "@fontsource-variable/inter";
+import "@fontsource/ibm-plex-mono/400.css";
 import "./styles/tokens.css";
 
 // Minimal routing by path; the encounter id rides along as ?e=<id>.

@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { renderChartNote, type ChartNote, type ReviewData } from "@synapse/shared";
+import { renderChartNote, type ChartNote, type ReviewData } from "@signapse/shared";
 import { encounterIdFromUrl, getChartNote, getReview, verifyUtterance } from "../../lib/api";
 import { useRoom } from "../../lib/useRoom";
+import { AppShell } from "../../components/AppShell";
+import { EmptyArt, Icon } from "../../components/brand";
+import { PageHeader } from "../../components/PageHeader";
 import { UtteranceLine } from "../../components/conversation/UtteranceLine";
 import { PainTrendChart } from "../../components/review/PainTrendChart";
 
@@ -34,7 +37,7 @@ export function ReviewPage() {
 
   useEffect(load, [load]);
   // Stay current if the visit is still going or a line is confirmed elsewhere.
-  useRoom(encounterId, load);
+  const { connected } = useRoom(encounterId, load);
 
   const confirm = async (id: string) => {
     const row = await verifyUtterance(id, data?.encounter.clinicianId ?? "clinician");
@@ -65,43 +68,67 @@ export function ReviewPage() {
     }
   };
 
-  if (error && !data) return <main className="page">Could not load this encounter: {error}</main>;
-  if (!data) return <main className="page muted">Loading…</main>;
+  if (!data) {
+    return (
+      <AppShell screen="review">
+        <p className={error ? undefined : "muted"}>{error ? `Could not load this visit: ${error}` : "Loading…"}</p>
+      </AppShell>
+    );
+  }
 
   const { encounter, utterances, painTrend, stats } = data;
   const lastTs = utterances.at(-1)?.ts ?? encounter.startedAt;
 
   return (
-    <main className="page">
-      <h1 style={{ margin: "0 0 4px" }}>Chart review</h1>
-      <p className="muted" style={{ marginTop: 0 }}>
-        Patient <b>{encounter.patientRef}</b> · Clinician {encounter.clinicianId} · Started{" "}
-        {localTime(encounter.startedAt)} · {duration(encounter.startedAt, encounter.endedAt ?? lastTs)} ·{" "}
-        <a href={`/clinician?e=${encounterId}`}>Back to live screen</a>
-      </p>
+    <AppShell screen="review" encounter={encounter} connected={connected}>
+      <PageHeader greet={`Visit ${encounter.patientRef}`} title="Chart review">
+        Clinician {encounter.clinicianId} · Started {localTime(encounter.startedAt)} ·{" "}
+        {duration(encounter.startedAt, encounter.endedAt ?? lastTs)}
+      </PageHeader>
 
-      <div className="stats" style={{ margin: "16px 0" }}>
+      <div className="stats" style={{ marginBottom: 18 }}>
         <div className="stat">
-          <span className="muted">Lines</span>
+          <div className="stat-head">
+            <span className="circle tint-blue">
+              <Icon name="chat" size={17} />
+            </span>
+            Lines translated
+          </div>
           <b>{stats.lines}</b>
         </div>
         <div className={`stat${stats.urgent ? " alert" : ""}`}>
-          <span className="muted">Urgent</span>
+          <div className="stat-head">
+            <span className={`circle ${stats.urgent ? "tint-red" : "tint-green"}`}>
+              <Icon name="alert" size={17} />
+            </span>
+            Urgent flags
+          </div>
           <b>{stats.urgent}</b>
         </div>
-        <div className={`stat${stats.unconfirmed ? " alert" : ""}`}>
-          <span className="muted">Unconfirmed</span>
+        <div className="stat">
+          <div className="stat-head">
+            <span className={`circle ${stats.unconfirmed ? "tint-amber" : "tint-green"}`}>
+              <Icon name="check" size={17} />
+            </span>
+            {stats.unconfirmed ? "Need confirmation" : "All confirmed"}
+          </div>
           <b>{stats.unconfirmed}</b>
         </div>
       </div>
 
       <div className="row">
-        <section className="panel" style={{ flex: "1 1 420px" }}>
-          <h2 style={{ margin: 0, fontSize: 18 }}>Conversation</h2>
+        <section className="panel chat-panel" style={{ flex: "1 1 420px" }}>
+          <div className="section-head" style={{ marginTop: 0 }}>
+            <h2 className="section-title">Conversation</h2>
+            <span className="muted">{utterances.length} lines</span>
+          </div>
           {utterances.length === 0 ? (
-            <p className="muted">Nothing recorded yet.</p>
+            <div className="empty">
+              <EmptyArt icon="clipboard" />
+              <p>Nothing recorded yet.</p>
+            </div>
           ) : (
-            <ol className="lines">
+            <ol className="chat">
               {utterances.map((u) => (
                 <UtteranceLine key={u.id} u={u} onConfirm={confirm} />
               ))}
@@ -111,19 +138,29 @@ export function ReviewPage() {
 
         <div style={{ flex: "1 1 420px", display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
           <section className="panel">
-            <h2 style={{ margin: "0 0 8px", fontSize: 18 }}>Pain over time</h2>
+            <h2 className="section-title">Pain over time</h2>
             <PainTrendChart trend={painTrend} />
           </section>
 
           <section className="panel">
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 10 }}>
-              <h2 style={{ margin: 0, fontSize: 18, flex: "1 1 auto" }}>Chart note</h2>
-              <button className="btn primary" onClick={generate} disabled={noteBusy}>
+            <div className="insight-head">
+              <span className="orb">
+                <Icon name="clipboard" size={18} />
+              </span>
+              <div>
+                <h2>Chart note</h2>
+                <span className="muted" style={{ fontSize: 13 }}>
+                  Built from the saved record. Only the summary is AI-drafted.
+                </span>
+              </div>
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, margin: "12px 0" }}>
+              <button className="btn dark" onClick={generate} disabled={noteBusy}>
                 {noteBusy ? "Drafting…" : note ? "Regenerate" : "Generate note"}
               </button>
               {note && (
                 <button className="btn" onClick={copy}>
-                  {copied ? "Copied" : "Copy"}
+                  {copied ? "Copied" : "Copy to record"}
                 </button>
               )}
             </div>
@@ -131,7 +168,7 @@ export function ReviewPage() {
               <>
                 {stats.unconfirmed > 0 && (
                   <p className="chip confirm" style={{ marginTop: 0 }}>
-                    ⚠ {stats.unconfirmed} line{stats.unconfirmed > 1 ? "s" : ""} still unconfirmed. Confirm them, then
+                    {stats.unconfirmed} line{stats.unconfirmed > 1 ? "s" : ""} still unconfirmed. Confirm them, then
                     regenerate.
                   </p>
                 )}
@@ -145,15 +182,10 @@ export function ReviewPage() {
                   Edit the draft here if needed, then copy it into the hospital record.
                 </p>
               </>
-            ) : (
-              <p className="muted">
-                Builds a draft from the saved conversation and pain map. Facts come from the record; only the summary
-                paragraph is AI-drafted.
-              </p>
-            )}
+            ) : null}
           </section>
         </div>
       </div>
-    </main>
+    </AppShell>
   );
 }

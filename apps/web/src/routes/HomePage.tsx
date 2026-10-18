@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
-import type { Encounter } from "@synapse/shared";
-import { createEncounter, listActiveEncounters } from "../lib/api";
+import type { Encounter } from "@signapse/shared";
+import { createEncounter, endEncounter, listActiveEncounters } from "../lib/api";
+import { AppShell } from "../components/AppShell";
+import { EmptyArt, HeroArt, Icon } from "../components/brand";
 
-const CLINICIAN_KEY = "synapse.clinicianId";
+const CLINICIAN_KEY = "signapse.clinicianId";
+const SAMPLE_VISIT = "00000000-0000-4000-8000-000000000002";
 
 function savedClinician() {
   try {
@@ -10,6 +13,11 @@ function savedClinician() {
   } catch {
     return "";
   }
+}
+
+function greeting() {
+  const h = new Date().getHours();
+  return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
 }
 
 const since = (iso: string) => {
@@ -23,6 +31,8 @@ export function HomePage() {
   const [clinician, setClinician] = useState(savedClinician);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  // Ending a visit takes two clicks: End, then End visit.
+  const [confirmEnd, setConfirmEnd] = useState<string>();
 
   useEffect(() => {
     listActiveEncounters()
@@ -47,68 +57,181 @@ export function HomePage() {
     }
   };
 
-  return (
-    <main className="page">
-      <h1 style={{ marginTop: 0 }}>Synapse</h1>
-      <p className="muted">Sign-language translation for Deaf patients and clinical staff.</p>
+  const end = async (id: string) => {
+    try {
+      await endEncounter(id);
+      setVisits((prev) => prev?.filter((v) => v.encounterId !== id));
+    } catch (err) {
+      setError(String((err as Error).message ?? err));
+    } finally {
+      setConfirmEnd(undefined);
+    }
+  };
 
-      <section className="panel" style={{ marginBottom: 16 }}>
-        <h2 style={{ margin: "0 0 8px", fontSize: 18 }}>Start a visit</h2>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-          <label>
-            <span className="muted" style={{ fontSize: 13, display: "block" }}>
-              Clinician ID (optional)
-            </span>
+  const firstOpen = visits?.[0];
+
+  return (
+    <AppShell screen="visits">
+      <div className="home-top">
+        <HeroArt />
+        <div style={{ width: "100%" }}>
+          <p className="greet">{greeting()}{clinician.trim() ? `, ${clinician.trim()}` : ""}</p>
+          <h1 className="page-title">Ready to start a visit?</h1>
+          <p className="lede">
+            Sign language and facial expressions, translated into clear clinical sentences for the care team.
+          </p>
+          <form
+            className="field"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void start();
+            }}
+          >
+            <Icon name="user" size={18} />
             <input
-              className="input"
               value={clinician}
               onChange={(e) => setClinician(e.target.value)}
-              placeholder="e.g. dr-lee"
+              placeholder="Clinician ID (optional)"
+              aria-label="Clinician ID (optional)"
               maxLength={64}
             />
-          </label>
-          <button className="btn primary" onClick={start} disabled={busy} style={{ alignSelf: "flex-end" }}>
-            {busy ? "Starting…" : "Start new visit"}
-          </button>
+            <button className="btn primary" type="submit" disabled={busy}>
+              {busy ? "Starting…" : "Start visit"}
+              <Icon name="arrow" size={16} />
+            </button>
+          </form>
+          <p className="muted" style={{ fontSize: 13, margin: "12px 0 0" }}>
+            Patients get a token like PT-7K3Q. No names are stored.
+          </p>
         </div>
-        <p className="muted" style={{ fontSize: 13, marginBottom: 0 }}>
-          The patient gets a token like PT-7K3Q. No names are stored.
-        </p>
-      </section>
+      </div>
 
-      <section className="panel">
-        <h2 style={{ margin: "0 0 8px", fontSize: 18 }}>Open visits</h2>
-        {error && <p className="chip urgent">{error}</p>}
-        {!visits ? (
-          <p className="muted">Loading…</p>
-        ) : visits.length === 0 ? (
-          <p className="muted">No open visits. Start one above.</p>
-        ) : (
-          <ul className="visits">
-            {visits.map((v) => (
-              <li key={v.encounterId}>
-                <span>
-                  <b>{v.patientRef}</b>{" "}
-                  <span className="muted">
-                    · {v.clinicianId} · started {since(v.startedAt)}
-                  </span>
+      {firstOpen && (
+        <a className="banner-pill" href={`/clinician?e=${firstOpen.encounterId}`}>
+          <span className="circle">
+            <Icon name="list" size={20} />
+          </span>
+          <span>
+            You have <b>{visits!.length} open {visits!.length === 1 ? "visit" : "visits"}</b>. Continue with{" "}
+            <b>{firstOpen.patientRef}</b>
+          </span>
+          <span className="arrow">
+            <Icon name="arrow" size={22} />
+          </span>
+        </a>
+      )}
+
+      <div className="section-head">
+        <h2 className="section-title">Quick access</h2>
+      </div>
+      <div className="quick">
+        <a href={`/review?e=${SAMPLE_VISIT}`}>
+          <span className="quick-top">
+            <span className="circle tint-blue">
+              <Icon name="clipboard" />
+            </span>
+            <span className="go">
+              <Icon name="upright" size={16} />
+            </span>
+          </span>
+          <span>
+            <b>Sample chart review</b>
+            <small>A finished 40-minute visit</small>
+          </span>
+        </a>
+        <a href={firstOpen ? `/patient?e=${firstOpen.encounterId}` : "#start"} onClick={(e) => !firstOpen && e.preventDefault()}>
+          <span className="quick-top">
+            <span className="circle tint-green">
+              <Icon name="hands" />
+            </span>
+            <span className="go">
+              <Icon name="upright" size={16} />
+            </span>
+          </span>
+          <span>
+            <b>Patient station</b>
+            <small>{firstOpen ? `Join ${firstOpen.patientRef}` : "Start a visit first"}</small>
+          </span>
+        </a>
+        <a href={firstOpen ? `/clinician?e=${firstOpen.encounterId}` : "#start"} onClick={(e) => !firstOpen && e.preventDefault()}>
+          <span className="quick-top">
+            <span className="circle tint-lilac">
+              <Icon name="chat" />
+            </span>
+            <span className="go">
+              <Icon name="upright" size={16} />
+            </span>
+          </span>
+          <span>
+            <b>Live translation</b>
+            <small>{firstOpen ? `Open ${firstOpen.patientRef}` : "Start a visit first"}</small>
+          </span>
+        </a>
+      </div>
+
+      <div className="section-head">
+        <h2 className="section-title">Open visits</h2>
+        {visits && visits.length > 0 && <span className="muted">{visits.length} open</span>}
+      </div>
+      {error && <p className="chip urgent">{error}</p>}
+      {!visits ? (
+        <p className="muted">Loading…</p>
+      ) : visits.length === 0 ? (
+        <div className="panel empty">
+          <EmptyArt icon="calendar" />
+          <p style={{ margin: 0 }}>No open visits. Start one above.</p>
+        </div>
+      ) : (
+        <ul className="visits">
+          {visits.map((v) => (
+            <li key={v.encounterId} className="visit">
+              <div className="visit-top">
+                <span className="chip live">Open</span>
+                <span className="visit-end">
+                  {confirmEnd === v.encounterId ? (
+                    <>
+                      <button className="btn small danger" onClick={() => end(v.encounterId)}>
+                        End visit
+                      </button>
+                      <button className="btn small quiet" onClick={() => setConfirmEnd(undefined)}>
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      className="btn small quiet"
+                      onClick={() => setConfirmEnd(v.encounterId)}
+                      aria-label={`End visit ${v.patientRef}`}
+                    >
+                      End
+                    </button>
+                  )}
                 </span>
-                <span className="visit-links">
-                  <a className="btn small" href={`/patient?e=${v.encounterId}`}>
-                    Patient screen
-                  </a>
-                  <a className="btn small" href={`/clinician?e=${v.encounterId}`}>
-                    Clinician
-                  </a>
-                  <a className="btn small" href={`/review?e=${v.encounterId}`}>
-                    Review
-                  </a>
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-    </main>
+              </div>
+              <b>{v.patientRef}</b>
+              <div>
+                <div className="meta-line">
+                  <Icon name="user" size={15} /> {v.clinicianId}
+                </div>
+                <div className="meta-line">
+                  <Icon name="clock" size={15} /> Started {since(v.startedAt)}
+                </div>
+              </div>
+              <div className="visit-actions">
+                <a className="btn primary" href={`/clinician?e=${v.encounterId}`}>
+                  Open visit
+                </a>
+                <a className="btn" href={`/patient?e=${v.encounterId}`}>
+                  Patient screen
+                </a>
+                <a className="icon-btn" href={`/review?e=${v.encounterId}`} aria-label={`Review ${v.patientRef}`}>
+                  <Icon name="clipboard" size={18} />
+                </a>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </AppShell>
   );
 }

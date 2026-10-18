@@ -105,7 +105,7 @@ def run(camera: int) -> None:
                 scale=0.45,
             )
         _text(img, status, h - 6, scale=0.45)
-        cv2.imshow("Synapse facial grammar lab", img)
+        cv2.imshow("Signapse facial grammar lab", img)
 
         key = cv2.waitKey(1) & 0xFF
         if key in (ord("q"), 27):

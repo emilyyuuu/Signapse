@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "facial-grammar"
 version = "0.1.0"
-description = "Synapse facial grammar: brows, squint and head movement to a grammar flag, on device."
+description = "Signapse facial grammar: brows, squint and head movement to a grammar flag, on device."
 requires-python = ">=3.10,<3.13"
 dependencies = [
     "mediapipe>=0.10.14",

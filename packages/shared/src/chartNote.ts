@@ -98,7 +98,7 @@ export function renderChartNote(note: ChartNote, formatTime: (iso: string) => st
   const e = note.encounter;
   out.push("CLINICAL ENCOUNTER NOTE (DRAFT)");
   out.push(`Patient: ${e.patientRef}   Clinician: ${e.clinicianId}   Started: ${formatTime(e.startedAt)}`);
-  out.push("Source: Synapse sign-language translation (ASL). Not a substitute for a qualified interpreter.");
+  out.push("Source: Signapse sign-language translation (ASL). Not a substitute for a qualified interpreter.");
 
   if (note.aiSummary) {
     out.push("", "SUMMARY (AI-drafted, verify before signing)", note.aiSummary);

@@ -1,8 +1,8 @@
-# Synapse
+# Signapse
 
 **Real-time sign-to-clinical translation for Deaf and hard-of-hearing patients.**
 
-Synapse translates between a Deaf patient and medical staff in real time. In sign language the face is part of the grammar: raised brows turn a statement into a yes/no question, a head shake turns it into a denial. Synapse reads eyebrows, squint and head movement along with the hands, so a question stays a question and a denial stays a denial.
+Signapse translates between a Deaf patient and medical staff in real time. In sign language the face is part of the grammar: raised brows turn a statement into a yes/no question, a head shake turns it into a denial. Signapse reads eyebrows, squint and head movement along with the hands, so a question stays a question and a denial stays a denial.
 
 Signs become a clean clinical sentence that is spoken to the doctor and filed as chart data. The doctor's reply goes back to the patient as plain-language text and icons. Video never leaves the device. The whole conversation is logged in Tiger Data (Postgres + TimescaleDB) for review at charting time.
 
@@ -109,7 +109,7 @@ For body-map pointing, call `report(zone, severity, "pointing")` from `usePainMa
 ## Non-negotiables
 
 - **Privacy:** camera frames and landmarks are processed in the local vision process and discarded. The API rejects anything that isn't text or numbers. Patients are tokens, not names. The UI shows a live "video frames sent: 0" counter. Chrome's `SpeechRecognition` sends audio to the cloud, so don't use it outside a clearly labelled stand-in.
-- **Safety:** a wrong meaning is a clinical risk, so lines that depend on a marker need clinician confirmation before charting. Synapse does not replace qualified interpreters and is not HIPAA/PHIPA compliant.
+- **Safety:** a wrong meaning is a clinical risk, so lines that depend on a marker need clinician confirmation before charting. Signapse does not replace qualified interpreters and is not HIPAA/PHIPA compliant.
 - **Demo resilience:** wizard mode (an operator triggers signs through the same pipeline) must work end to end before hour 8. Event writes are queued and must never block the UI.
 
 ## Out of scope

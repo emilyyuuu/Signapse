@@ -1,4 +1,4 @@
-import type { GrammarFlag } from "@synapse/shared";
+import type { GrammarFlag } from "@signapse/shared";
 
 export interface GeminiConfig {
   apiKey: string;

@@ -1,5 +1,5 @@
 import { useMemo, useState, type MouseEvent } from "react";
-import { ZONE_LABELS, type PainTrendPoint } from "@synapse/shared";
+import { ZONE_LABELS, type PainTrendPoint } from "@signapse/shared";
 
 // Pain over time for one visit: one line per body zone, peak 0–10 per minute
 // (Tiger continuous aggregate pain_by_minute). At most three zones are drawn,
@@ -42,6 +42,15 @@ export function PainTrendChart({ trend }: { trend: PainTrendPoint[] }) {
     const nearest = buckets.reduce((best, b) => (Math.abs(x(b) - px) < Math.abs(x(best) - px) ? b : best));
     setHover(nearest);
   };
+
+  // End-of-line labels, pushed apart vertically so equal values don't overlap.
+  const labelY: Record<string, number> = {};
+  let prev = -Infinity;
+  for (const s of [...series].sort((a, b) => y(a.pts[a.pts.length - 1].peak) - y(b.pts[b.pts.length - 1].peak))) {
+    const want = y(s.pts[s.pts.length - 1].peak) + 4;
+    prev = Math.max(want, prev + 15);
+    labelY[s.zone] = prev;
+  }
 
   const hoverRows =
     hover === null
@@ -89,7 +98,7 @@ export function PainTrendChart({ trend }: { trend: PainTrendPoint[] }) {
                   <circle key={p.t} className="series-dot" cx={x(p.t)} cy={y(p.peak)} r={4} />
                 ))}
                 {/* Direct label at the line end, in text ink: identity never rests on colour alone. */}
-                <text className="direct" x={x(last.t) + 10} y={y(last.peak) + 4}>
+                <text className="direct" x={x(last.t) + 10} y={labelY[s.zone]}>
                   {ZONE_LABELS[s.zone] ?? s.zone} {last.peak}
                 </text>
               </g>

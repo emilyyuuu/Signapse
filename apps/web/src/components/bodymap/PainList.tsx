@@ -1,4 +1,4 @@
-import { ZONE_LABELS, painPriority } from "@synapse/shared";
+import { ZONE_LABELS, painPriority } from "@signapse/shared";
 
 // Zones in pain, most severe first, with the same urgency rule as signed pain.
 export function PainList({ pain }: { pain: Record<string, number> }) {

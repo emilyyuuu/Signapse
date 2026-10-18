@@ -1,4 +1,4 @@
-import { buildClinicalSentence, describeFace, type GrammarFlag, type TranslateResult } from "@synapse/shared";
+import { buildClinicalSentence, describeFace, type GrammarFlag, type TranslateResult } from "@signapse/shared";
 import { geminiSentence, type GeminiConfig } from "./gemini.js";
 
 // Signs + facial grammar -> clinical sentence. Priority and confirmation come

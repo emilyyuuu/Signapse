@@ -1,5 +1,5 @@
 import type { KeyboardEvent } from "react";
-import { BODY_VIEWS, type BodyView } from "@synapse/shared";
+import { BODY_VIEWS, type BodyView } from "@signapse/shared";
 
 interface Props {
   view: BodyView;

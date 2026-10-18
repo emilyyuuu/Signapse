@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { PainReading } from "@synapse/shared";
+import type { PainReading } from "@signapse/shared";
 import { getEncounter, postPain } from "../../lib/api";
 
 interface Reading {

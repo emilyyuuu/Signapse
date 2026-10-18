@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { assessUtterance, buildChartNote, visitLog, type ChartNote, type ReviewData } from "@synapse/shared";
+import { assessUtterance, buildChartNote, visitLog, type ChartNote, type ReviewData } from "@signapse/shared";
 import type { Store } from "../db/client.js";
 import { geminiNoteSummary, type GeminiConfig } from "../language/gemini.js";
 import { broadcast } from "../ws/rooms.js";
