@@ -31,16 +31,27 @@ const signalSchema = z
 
 const MAX_PER_SECOND = 50;
 
+type Role = "patient" | "clinician";
 interface Client {
   ws: WebSocket;
+  role: Role;
   call?: CallRole; // set on the patient's and doctor's call screens
 }
 
-// One room per encounter. Clients connect to /ws?encounter=<uuid> and receive
-// every utterance and pain reading stored for that encounter. Call screens add
-// &call=patient|doctor; each role can be open once per room, so a third person
-// with the link can't join the call.
+// One room per encounter. Clients connect to /ws?encounter=<uuid>&role=patient|clinician
+// and receive every utterance and pain reading for that encounter. Messages meant
+// only for the patient (a signed clause they have not sent yet) go to role=patient
+// screens and never to the clinician. The role is declared by the screen; there is
+// no sign-in yet, so this separates the screens but is not security.
+// Call screens add &call=patient|doctor; each call role can be open once per room,
+// so a third person with the link can't join the call.
 const rooms = new Map<string, Set<Client>>();
+
+// What a patient screen should see when it connects (a draft already waiting).
+let patientHello: (encounterId: string) => RoomMessage | undefined = () => undefined;
+export function setPatientHello(fn: (encounterId: string) => RoomMessage | undefined) {
+  patientHello = fn;
+}
 
 export function attachRooms(server: Server, allowedOrigins: string[]) {
   const wss = new WebSocketServer({ noServer: true, maxPayload: 32 * 1024 });
@@ -50,6 +61,8 @@ export function attachRooms(server: Server, allowedOrigins: string[]) {
     const encounterId = url.searchParams.get("encounter") ?? "";
     const callParam = url.searchParams.get("call");
     const call = callParam === "patient" || callParam === "doctor" ? callParam : undefined;
+    // The doctor's call screen is a clinician screen, whatever it declares.
+    const role: Role = url.searchParams.get("role") === "patient" && call !== "doctor" ? "patient" : "clinician";
     const origin = req.headers.origin ?? "";
     if (url.pathname !== "/ws" || !UUID.test(encounterId) || !allowedOrigins.includes(origin)) {
       socket.destroy();
@@ -68,7 +81,7 @@ export function attachRooms(server: Server, allowedOrigins: string[]) {
     wss.handleUpgrade(req, socket, head, (ws) => {
       let room = rooms.get(encounterId);
       if (!room) rooms.set(encounterId, (room = new Set()));
-      const client: Client = { ws, call };
+      const client: Client = { ws, role, call };
       room.add(client);
 
       let windowStart = Date.now();
@@ -112,9 +125,10 @@ function relay(encounterId: string, sender: Client, msg: ClientRoomMessage) {
   }
 }
 
-export function broadcast(encounterId: string, msg: RoomMessage) {
+export function broadcast(encounterId: string, msg: RoomMessage, audience: "all" | "patient" = "all") {
   const payload = JSON.stringify(msg);
-  for (const { ws } of rooms.get(encounterId) ?? []) {
-    if (ws.readyState === ws.OPEN) ws.send(payload);
+  for (const c of rooms.get(encounterId) ?? []) {
+    if (audience === "patient" && c.role !== "patient") continue;
+    if (c.ws.readyState === c.ws.OPEN) c.ws.send(payload);
   }
 }

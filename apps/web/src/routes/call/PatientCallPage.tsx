@@ -331,6 +331,7 @@ export function PatientCallPage() {
                     highlighted={flow.pointed?.zone}
                     tentative={flow.pointed?.gesture === "touch"}
                     onPick={flow.tap}
+                    mirrored
                   />
                 </div>
                 <p className="muted" style={{ fontSize: 13, textAlign: "center", margin: "8px 0 12px" }}>

@@ -45,7 +45,7 @@ export function HomePage() {
   const startCall = async () => {
     setBusy(true);
     try {
-      const e = await createEncounter(clinician.trim() || undefined);
+      const e = await createEncounter();
       location.href = `/call?e=${e.encounterId}`;
     } catch (err) {
       setError(String((err as Error).message ?? err));
