@@ -1,8 +1,14 @@
 {
-  "name": "@synapse/shared",
+  "name": "@signapse/shared",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "main": "src/index.ts",
-  "types": "src/index.ts"
+  "types": "src/index.ts",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.4"
+  }
 }
