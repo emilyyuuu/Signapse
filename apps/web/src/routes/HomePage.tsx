@@ -57,6 +57,18 @@ export function HomePage() {
     }
   };
 
+  // Call mode: a new visit held as a video call with a doctor somewhere else.
+  const startCall = async () => {
+    setBusy(true);
+    try {
+      const e = await createEncounter(clinician.trim() || undefined);
+      location.href = `/call?e=${e.encounterId}`;
+    } catch (err) {
+      setError(String((err as Error).message ?? err));
+      setBusy(false);
+    }
+  };
+
   const end = async (id: string) => {
     try {
       await endEncounter(id);
@@ -165,6 +177,26 @@ export function HomePage() {
           <span>
             <b>Live translation</b>
             <small>{firstOpen ? `Open ${firstOpen.patientRef}` : "Start a visit first"}</small>
+          </span>
+        </a>
+        <a
+          href="/call"
+          onClick={(e) => {
+            e.preventDefault();
+            if (!busy) void startCall();
+          }}
+        >
+          <span className="quick-top">
+            <span className="circle tint-blue">
+              <Icon name="phone" />
+            </span>
+            <span className="go">
+              <Icon name="upright" size={16} />
+            </span>
+          </span>
+          <span>
+            <b>Call a doctor</b>
+            <small>Video call with live captions</small>
           </span>
         </a>
       </div>

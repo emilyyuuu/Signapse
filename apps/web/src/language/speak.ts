@@ -29,13 +29,25 @@ export function unlockVoice() {
   speechSynthesis.speak(u);
 }
 
-export function speak(text: string, opts: { urgent?: boolean } = {}) {
-  if (!speechSupported || !text) return;
+// onEnd runs when the sentence has been said (or failed), e.g. to resume listening.
+export function speak(text: string, opts: { urgent?: boolean; onEnd?: () => void } = {}) {
+  if (!speechSupported || !text) {
+    opts.onEnd?.();
+    return;
+  }
   // Say the newest sentence now rather than queueing behind older ones.
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(opts.urgent ? `Urgent. ${text}` : text);
   if (voice) u.voice = voice;
   u.lang = voice?.lang ?? "en-US";
   u.rate = 0.95;
+  if (opts.onEnd) {
+    let done = false;
+    const end = () => {
+      if (!done) (done = true), opts.onEnd!();
+    };
+    u.onend = end;
+    u.onerror = end;
+  }
   speechSynthesis.speak(u);
 }

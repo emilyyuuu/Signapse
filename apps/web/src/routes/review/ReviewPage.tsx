@@ -37,7 +37,10 @@ export function ReviewPage() {
 
   useEffect(load, [load]);
   // Stay current if the visit is still going or a line is confirmed elsewhere.
-  const { connected } = useRoom(encounterId, load);
+  // Live-only traffic (pointing, gestures, call setup) changes nothing stored.
+  const { connected } = useRoom(encounterId, (msg) => {
+    if (msg.type === "utterance" || msg.type === "verified" || msg.type === "pain" || msg.type === "ended") load();
+  });
 
   const confirm = async (id: string) => {
     const row = await verifyUtterance(id, data?.encounter.clinicianId ?? "clinician");

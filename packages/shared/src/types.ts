@@ -142,6 +142,21 @@ export interface StoredGestureEvent extends GestureEvent {
   ts: string;
 }
 
+// Call mode: a video call between the patient and a remote doctor. Audio, video and live
+// captions go peer to peer (WebRTC, DTLS-SRTP); the room only relays these setup messages.
+export type CallRole = "patient" | "doctor";
+
+export interface CallSignal {
+  from: CallRole;
+  // hello: joined the call; admit: the patient let the doctor in; bye: hung up.
+  kind: "hello" | "admit" | "offer" | "answer" | "ice" | "bye";
+  sdp?: string;
+  candidate?: { candidate: string; sdpMid?: string | null; sdpMLineIndex?: number | null; usernameFragment?: string | null };
+}
+
+// The only message a browser may send into a room. The server relays it to the others.
+export type ClientRoomMessage = { type: "signal"; data: CallSignal };
+
 // Messages pushed to every browser in an encounter's WebSocket room.
 export type RoomMessage =
   | { type: "utterance"; data: StoredUtterance }
@@ -149,7 +164,8 @@ export type RoomMessage =
   | { type: "pain"; data: StoredPainReading }
   | { type: "point"; data: StoredPointEvent }
   | { type: "gesture"; data: StoredGestureEvent } // the patient pointed at or touched a body part
-  | { type: "ended"; data: Encounter }; // the visit was ended; screens stop accepting input
+  | { type: "ended"; data: Encounter } // the visit was ended; screens stop accepting input
+  | { type: "signal"; data: CallSignal }; // call setup, relayed from the other side of a call
 
 // One point of the pain trend (continuous aggregate pain_by_minute).
 export interface PainTrendPoint {
