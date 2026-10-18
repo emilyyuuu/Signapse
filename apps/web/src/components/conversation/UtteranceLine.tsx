@@ -5,6 +5,7 @@ import {
   describeFace,
   pointedZone,
   type GrammarFlag,
+  type Speaker,
   type StoredUtterance,
 } from "@signapse/shared";
 import { Icon } from "../brand";
@@ -30,15 +31,18 @@ export function faceSummary(u: StoredUtterance) {
     : undefined;
 }
 
-// One conversation line as a chat bubble: patient lines (translated from
-// signing) on the left beside the orb, clinician lines on the right. Chips
+// One conversation line as a chat bubble. The viewer's own lines are on the
+// right (clinician screens by default; the patient's call screen passes
+// self="patient"), the other side's on the left. Chips
 // show urgency and grammar; a Confirm button shows while meaning is unconfirmed.
 export function UtteranceLine({
   u,
   onConfirm,
+  self = "clinician",
 }: {
   u: StoredUtterance;
   onConfirm?: (id: string) => Promise<boolean>;
+  self?: Speaker; // whose screen this is: their lines go on the right
 }) {
   const { urgent, needsConfirm, confirmed } = assessUtterance(u);
   const face = faceSummary(u);
@@ -55,7 +59,7 @@ export function UtteranceLine({
   };
 
   return (
-    <li className={`msg ${fromClinician ? "from-clinician" : "from-patient"}`}>
+    <li className={`msg ${fromClinician ? "from-clinician" : "from-patient"} ${u.speaker === self ? "mine" : "theirs"}`}>
       {fromClinician ? (
         <span className="icon-btn avatar" aria-hidden="true">
           <Icon name="user" size={16} />

@@ -10,6 +10,7 @@ import {
   type PainReading,
   type StoredPainReading,
   type StoredUtterance,
+  type UtteranceEvent,
 } from "@signapse/shared";
 
 export const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8787";
@@ -112,6 +113,21 @@ export async function getChartNote(id: string): Promise<ChartNote> {
   const res = await fetch(`${API_URL}/encounters/${id}/note`, { method: "POST" });
   if (!res.ok) throw new Error(`POST /encounters/${id}/note failed: ${res.status}`);
   return res.json();
+}
+
+// A line that needs no translation: the doctor's spoken words, a YES/NO tap or
+// a typed message. Stored and pushed to every screen on the encounter.
+export async function postUtterance(u: UtteranceEvent): Promise<StoredUtterance | null> {
+  try {
+    const res = await fetch(`${API_URL}/events`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(u),
+    });
+    return res.ok ? res.json() : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function postPain(reading: PainReading): Promise<boolean> {

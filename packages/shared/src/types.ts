@@ -145,6 +145,21 @@ export interface StoredGestureEvent extends GestureEvent {
   ts: string;
 }
 
+// Call mode: a video call between the patient and a remote doctor. Audio, video and live
+// captions go peer to peer (WebRTC, DTLS-SRTP); the room only relays these setup messages.
+export type CallRole = "patient" | "doctor";
+
+export interface CallSignal {
+  from: CallRole;
+  // hello: joined the call; admit: the patient let the doctor in; bye: hung up.
+  kind: "hello" | "admit" | "offer" | "answer" | "ice" | "bye";
+  sdp?: string;
+  candidate?: { candidate: string; sdpMid?: string | null; sdpMLineIndex?: number | null; usernameFragment?: string | null };
+}
+
+// The only message a browser may send into a room. The server relays it to the others.
+export type ClientRoomMessage = { type: "signal"; data: CallSignal };
+
 // The patient checks what they signed before it goes to the doctor.
 // sent: sent as understood; edited: they fixed it first; auto_sent: an urgent line
 // that sent itself after 10 s because they did not answer; redone: signed again.
@@ -188,11 +203,12 @@ export type RoomMessage =
   | { type: "verified"; data: StoredUtterance } // a clinician confirmed an existing line
   | { type: "pain"; data: StoredPainReading }
   | { type: "point"; data: StoredPointEvent }
-  | { type: "gesture"; data: StoredGestureEvent }
+  | { type: "gesture"; data: StoredGestureEvent } // the patient pointed at or touched a body part
   | { type: "draft"; data: DraftView } // patient screens only
-  | { type: "draft_closed"; data: { id: string; action: PatientAction } } // patient screens only // the patient pointed at or touched a body part
+  | { type: "draft_closed"; data: { id: string; action: PatientAction } } // patient screens only
   | { type: "encounter"; data: Encounter } // the visit changed (e.g. the patient checked in)
-  | { type: "ended"; data: Encounter }; // the visit was ended; screens stop accepting input
+  | { type: "ended"; data: Encounter } // the visit was ended; screens stop accepting input
+  | { type: "signal"; data: CallSignal }; // call setup, relayed from the other side of a call
 
 // One point of the pain trend (continuous aggregate pain_by_minute).
 export interface PainTrendPoint {
