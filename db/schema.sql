@@ -3,7 +3,8 @@
 
 CREATE TABLE encounters (
   encounter_id  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  patient_ref   text NOT NULL,            -- hospital token, not a name
+  patient_ref   text NOT NULL,            -- internal token shown on screens, e.g. PT-7K3Q
+  patient_name  text,                     -- typed at check-in; never sent to Gemini or logged; fake names in demos
   clinician_id  text NOT NULL,
   sign_language text NOT NULL DEFAULT 'ASL',
   started_at    timestamptz NOT NULL DEFAULT now(),
@@ -24,7 +25,19 @@ CREATE TABLE utterances (
   plain_text    text,                     -- plain-language version for the patient
   confidence    real,
   verified_by   text,                     -- clinician who confirmed the meaning
-  verified_at   timestamptz
+  verified_at   timestamptz,
+  patient_confirmation jsonb              -- how the patient confirmed it: sent / edited / auto_sent
+) WITH (tsdb.hypertable, tsdb.segmentby = 'encounter_id');
+
+-- Every action the patient took on a draft before it was sent, including redone ones.
+-- Sign labels only, never sentences or names.
+CREATE TABLE patient_actions (
+  ts            timestamptz NOT NULL DEFAULT now(),
+  encounter_id  uuid NOT NULL REFERENCES encounters,
+  draft_id      uuid NOT NULL,
+  action        text NOT NULL CHECK (action IN ('sent','edited','auto_sent','redone')),
+  urgent        boolean NOT NULL DEFAULT false,
+  detail        jsonb
 ) WITH (tsdb.hypertable, tsdb.segmentby = 'encounter_id');
 
 -- Body-map taps and pointing gestures.

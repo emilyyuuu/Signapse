@@ -52,7 +52,7 @@ export function ClinicianPage() {
       apply(msg.data);
       return;
     }
-    if (msg.type === "ended") {
+    if (msg.type === "ended" || msg.type === "encounter") {
       setEncounter(msg.data);
       return;
     }
@@ -68,7 +68,7 @@ export function ClinicianPage() {
   });
 
   const confirm = async (id: string) => {
-    const row = await verifyUtterance(id, encounter?.clinicianId ?? "clinician");
+    const row = await verifyUtterance(id);
     if (row) setLines((prev) => mergeLines(prev, [row]));
     return !!row;
   };
@@ -76,7 +76,7 @@ export function ClinicianPage() {
   const newVisit = async () => {
     setBusy(true);
     try {
-      const e = await createEncounter(encounter?.clinicianId);
+      const e = await createEncounter();
       location.href = `/clinician?e=${e.encounterId}`;
     } catch (err) {
       console.warn(err);
@@ -148,8 +148,9 @@ export function ClinicianPage() {
         <p className="muted">This browser has no built-in voice. Sentences are shown as text only.</p>
       )}
 
-      <PageHeader greet={`Visit ${encounter?.patientRef ?? ""}`} title="Live translation">
+      <PageHeader greet={encounter ? `Visit ${encounter.patientRef}` : ""} title="Live translation">
         Signs and facial expressions from the patient station, as clinical sentences.
+        {encounter && <NameEditor encounter={encounter} onChange={setEncounter} />}
       </PageHeader>
 
       <div className="row">

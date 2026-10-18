@@ -43,7 +43,7 @@ export function ReviewPage() {
   });
 
   const confirm = async (id: string) => {
-    const row = await verifyUtterance(id, data?.encounter.clinicianId ?? "clinician");
+    const row = await verifyUtterance(id);
     if (row) load();
     return !!row;
   };
@@ -85,7 +85,8 @@ export function ReviewPage() {
   return (
     <AppShell screen="review" encounter={encounter} connected={connected}>
       <PageHeader greet={`Visit ${encounter.patientRef}`} title="Chart review">
-        Clinician {encounter.clinicianId} · Started {localTime(encounter.startedAt)} ·{" "}
+        {encounter.patientName ? <strong>{encounter.patientName}</strong> : <span>Name not entered</span>} · 
+        Started {localTime(encounter.startedAt)} ·{" "}
         {duration(encounter.startedAt, encounter.endedAt ?? lastTs)}
       </PageHeader>
 

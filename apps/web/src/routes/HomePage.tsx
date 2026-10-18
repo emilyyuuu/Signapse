@@ -1,19 +1,10 @@
 import { useEffect, useState } from "react";
-import type { Encounter } from "@signapse/shared";
+import { visitName, type Encounter } from "@signapse/shared";
 import { createEncounter, endEncounter, listActiveEncounters } from "../lib/api";
 import { AppShell } from "../components/AppShell";
 import { EmptyArt, HeroArt, Icon } from "../components/brand";
 
-const CLINICIAN_KEY = "signapse.clinicianId";
 const SAMPLE_VISIT = "00000000-0000-4000-8000-000000000002";
-
-function savedClinician() {
-  try {
-    return localStorage.getItem(CLINICIAN_KEY) ?? "";
-  } catch {
-    return "";
-  }
-}
 
 function greeting() {
   const h = new Date().getHours();
@@ -28,7 +19,6 @@ const since = (iso: string) => {
 // Start screen: the clinician starts a visit; a patient station joins an open one.
 export function HomePage() {
   const [visits, setVisits] = useState<Encounter[]>();
-  const [clinician, setClinician] = useState(savedClinician);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   // Ending a visit takes two clicks: End, then End visit.
@@ -43,13 +33,7 @@ export function HomePage() {
   const start = async () => {
     setBusy(true);
     try {
-      const id = clinician.trim() || undefined;
-      try {
-        if (id) localStorage.setItem(CLINICIAN_KEY, id);
-      } catch {
-        /* storage unavailable; the visit still starts */
-      }
-      const e = await createEncounter(id);
+      const e = await createEncounter();
       location.href = `/clinician?e=${e.encounterId}`;
     } catch (err) {
       setError(String((err as Error).message ?? err));
@@ -87,33 +71,17 @@ export function HomePage() {
       <div className="home-top">
         <HeroArt />
         <div style={{ width: "100%" }}>
-          <p className="greet">{greeting()}{clinician.trim() ? `, ${clinician.trim()}` : ""}</p>
+          <p className="greet">{greeting()}</p>
           <h1 className="page-title">Ready to start a visit?</h1>
           <p className="lede">
             Sign language and facial expressions, translated into clear clinical sentences for the care team.
           </p>
-          <form
-            className="field"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void start();
-            }}
-          >
-            <Icon name="user" size={18} />
-            <input
-              value={clinician}
-              onChange={(e) => setClinician(e.target.value)}
-              placeholder="Clinician ID (optional)"
-              aria-label="Clinician ID (optional)"
-              maxLength={64}
-            />
-            <button className="btn primary" type="submit" disabled={busy}>
-              {busy ? "Starting…" : "Start visit"}
-              <Icon name="arrow" size={16} />
-            </button>
-          </form>
+          <button className="btn primary big" onClick={start} disabled={busy}>
+            {busy ? "Starting…" : "Start new visit"}
+            <Icon name="arrow" size={16} />
+          </button>
           <p className="muted" style={{ fontSize: 13, margin: "12px 0 0" }}>
-            Patients get a token like PT-7K3Q. No names are stored.
+            The patient types their name at check-in on the patient station.
           </p>
         </div>
       </div>
@@ -125,7 +93,7 @@ export function HomePage() {
           </span>
           <span>
             You have <b>{visits!.length} open {visits!.length === 1 ? "visit" : "visits"}</b>. Continue with{" "}
-            <b>{firstOpen.patientRef}</b>
+            <b>{visitName(firstOpen)}</b>
           </span>
           <span className="arrow">
             <Icon name="arrow" size={22} />
@@ -162,7 +130,7 @@ export function HomePage() {
           </span>
           <span>
             <b>Patient station</b>
-            <small>{firstOpen ? `Join ${firstOpen.patientRef}` : "Start a visit first"}</small>
+            <small>{firstOpen ? `Join ${visitName(firstOpen)}` : "Start a visit first"}</small>
           </span>
         </a>
         <a href={firstOpen ? `/clinician?e=${firstOpen.encounterId}` : "#start"} onClick={(e) => !firstOpen && e.preventDefault()}>
@@ -176,7 +144,7 @@ export function HomePage() {
           </span>
           <span>
             <b>Live translation</b>
-            <small>{firstOpen ? `Open ${firstOpen.patientRef}` : "Start a visit first"}</small>
+            <small>{firstOpen ? `Open ${visitName(firstOpen)}` : "Start a visit first"}</small>
           </span>
         </a>
         <a
@@ -233,17 +201,17 @@ export function HomePage() {
                     <button
                       className="btn small quiet"
                       onClick={() => setConfirmEnd(v.encounterId)}
-                      aria-label={`End visit ${v.patientRef}`}
+                      aria-label={`End visit ${visitName(v)}`}
                     >
                       End
                     </button>
                   )}
                 </span>
               </div>
-              <b>{v.patientRef}</b>
+              <b>{visitName(v)}</b>
               <div>
                 <div className="meta-line">
-                  <Icon name="user" size={15} /> {v.clinicianId}
+                  <Icon name="user" size={15} /> {v.patientName ? v.patientRef : "Waiting for check-in"}
                 </div>
                 <div className="meta-line">
                   <Icon name="clock" size={15} /> Started {since(v.startedAt)}
@@ -256,7 +224,7 @@ export function HomePage() {
                 <a className="btn" href={`/patient?e=${v.encounterId}`}>
                   Patient screen
                 </a>
-                <a className="icon-btn" href={`/review?e=${v.encounterId}`} aria-label={`Review ${v.patientRef}`}>
+                <a className="icon-btn" href={`/review?e=${v.encounterId}`} aria-label={`Review ${visitName(v)}`}>
                   <Icon name="clipboard" size={18} />
                 </a>
               </div>
