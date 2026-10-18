@@ -2,7 +2,11 @@
 
 Run with ``python -m pointing.lab``. Point at a body part (0.2 s; 1 s at the middle of the
 chest, where pointing usually means ME) or touch / tap it with any hand shape (0.7 s) and
-the zone is posted to /point. Only points join a clause. Keys:
+the zone is posted to /point. Only points join a clause.
+
+Signing: the patient page's "Start signing" opens a session (POST /sign on the preview port).
+Each sign (hands up, sign, hands down) is matched by the recorded-sign model (signs.py), and
+"Done" sends the signs, with any points, to /clauses as a draft the patient checks. Keys:
   space   start / end a clause; at the end its signs (e.g. PAIN POINT-CHEST) go to /clauses
   p       PAIN was signed (stand-in until sign recognition exists): added to an open clause,
           and a point at the middle of the chest right after it counts as a location, not ME
@@ -14,7 +18,9 @@ Only zone ids and sign labels are sent. Use --dry-run to print instead.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
+import threading
 import time
 
 import cv2
@@ -24,6 +30,14 @@ from .api_client import ApiClient
 from .capture import frames
 from .head import HeadGestureDetector
 from .preview import Preview
+from .recorder import Recorder, seed_from_model
+from .signs import hands_array, load_session
+
+try:
+    from .face import FaceGrammar
+except Exception as _face_error:  # facial_grammar missing: signs still work, as statements
+    FaceGrammar = None
+    print(f"Facial grammar unavailable: {_face_error}")
 
 WHITE, GREEN, AMBER, RED = (255, 255, 255), (100, 230, 140), (40, 200, 255), (110, 110, 255)
 SKELETON = [
@@ -88,14 +102,52 @@ def _no_power_throttling() -> None:
         pass  # a speed-up only; never fatal
 
 
+def _draw_hands(img, body: BodyFrame, mirror: bool, color) -> None:
+    h, w = img.shape[:2]
+    for hand in body.hands:
+        for p in hand.image:
+            cv2.circle(img, _px(p, w, h, mirror), 2, color, -1, cv2.LINE_AA)
+
+
+def _watchdog(last_tick: dict, limit_s: float = 8.0) -> None:
+    """If tracking stops (a model hangs), close the program instead of showing a live picture
+    that reads nothing. The page then shows the camera as off, and it can be started again."""
+
+    def watch() -> None:
+        while True:
+            time.sleep(1.0)
+            if last_tick["t"] and time.monotonic() - last_tick["t"] > limit_s:
+                print(f"Tracking stopped for over {limit_s:.0f} s; closing the camera so it can be restarted.", flush=True)
+                os._exit(3)
+
+    threading.Thread(target=watch, daemon=True).start()
+
+
 def run(camera: int, dry_run: bool, preview_port: int = 0, show_window: bool = True) -> None:
     _no_power_throttling()
+    alive = {"t": 0.0}
+    _watchdog(alive)
     api = ApiClient(dry_run=dry_run)
+    tracker = PointingTracker()
+    # After PAIN (or HEADACHE) a point at mid-chest is a location, not ME.
+    face = FaceGrammar() if FaceGrammar else None
+    signs = load_session(
+        send=lambda gloss, confidence, flag, nmm: api.post_clause(gloss, flag, nmm, confidence),
+        on_sign=lambda gloss, t: tracker.note_sign("PAIN" if gloss == "HEADACHE" else gloss, t),
+        face=face,
+    )
+    hands_up = {"now": False}
+    # New examples of signs, recorded from the /record page; a rebuild loads straight in.
+    recorder = Recorder(on_rebuilt=signs.reload_model)
+    try:
+        if seeded := seed_from_model():
+            print(f"Copied the model's {seeded} examples into the recordings, so rebuilds keep them.")
+    except Exception as e:
+        print(f"Could not copy the model's examples: {e}")
     # Local-only MJPEG stream of the annotated camera, shown on the patient web page.
-    preview = Preview(preview_port) if preview_port else None
+    preview = Preview(preview_port, signs=signs, recorder=recorder) if preview_port else None
     if preview and not preview.start():
         preview = None
-    tracker = PointingTracker()
     head = HeadGestureDetector()
     last_gesture = ""
     clause: list[str] | None = None  # sign labels while a clause is open
@@ -118,10 +170,31 @@ def run(camera: int, dry_run: bool, preview_port: int = 0, show_window: bool = T
             _draw_body(view, body, mirror)
         if cand:
             cv2.circle(view, _px(cand.tip, w, h, mirror), 8, GREEN if cand.progress >= 1 else AMBER, 2)
+        if signs.is_open or recorder.active:
+            # While signing or recording, show the hands being read, and a red dot while capturing.
+            if body is not None:
+                _draw_hands(view, body, mirror, GREEN)
+            if signs.capturing or recorder.recording:
+                cv2.circle(view, (w - 24, 24), 10, RED, -1, cv2.LINE_AA)
         preview.update(view)
 
-    for img, body, t_ms in frames(camera, mirror=mirror, on_raw=publish):
+    def on_hands(hand_result, t_ms: float) -> None:
+        hands_up["now"] = bool(hand_result is not None and hand_result.hand_landmarks)
+        if signs.is_open:
+            signs.push(hands_array(hand_result), t_ms)
+        if recorder.active:
+            recorder.push(hands_array(hand_result), t_ms)
+
+    def on_face(face_result, t_ms: float) -> None:
+        face.push(face_result, t_ms, hands_up=hands_up["now"])
+
+    for img, body, t_ms in frames(
+        camera, mirror=mirror, on_raw=publish, on_hands=on_hands, on_face=on_face if face else None
+    ):
         now = time.monotonic()
+        alive["t"] = now
+        if preview:
+            preview.tracked_at = now
         fps = 0.9 * fps + 0.1 / max(now - last_tick, 1e-3)
         last_tick = now
         gesture = head.push(body, t_ms)
@@ -135,6 +208,9 @@ def run(camera: int, dry_run: bool, preview_port: int = 0, show_window: bool = T
             api.post_point(event.zone, event.confidence, event.gesture)
             # Only points join the clause; a touch is a suggestion the patient confirms on screen.
             label = point_label(event.zone)
+            # Points don't join a signing session: the patient picks the place in the next step
+            # ("Where does it hurt?"), where a point answers it. The movement isn't a sign either.
+            signs.ignore_point(t_ms, event.gesture)
             if event.adds_to_clause and clause is not None and (not clause or clause[-1] != label):
                 clause.append(label)
 
@@ -170,6 +246,9 @@ def run(camera: int, dry_run: bool, preview_port: int = 0, show_window: bool = T
             y,
             scale=0.5,
         )
+        if signs.is_open:
+            words = " ".join(w["gloss"] or "..." for w in signs.status()["words"])
+            _text(img, f"SIGNING{' (capturing)' if signs.capturing else ''}: {words or '...'}", h - 96, RED)
         if clause is not None:
             _text(img, f"CLAUSE: {' '.join(clause) or '...'}  (space to end, p = PAIN)", h - 64, RED)
         _text(img, status, h - 32, scale=0.5)

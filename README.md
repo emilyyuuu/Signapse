@@ -116,6 +116,27 @@ Filters against signs that touch the body (all in `tracker.py`, thresholds in `T
 
 Tuning in the lab: the overlay shows the zone, the gesture, the hold progress, fps and, for touches, `depth` (about 1.0 on the body, larger when the hand is in front). If touches fire while signing in front of the chest, lower `max_touch_depth`; if real touches are missed, raise it or check `assumed_shoulder_m`. `touch_enabled=False` turns touches off. The stats line counts why holds ended: lots of `moved` means the hand drifts more than `max_jitter` while held; lots of `lost` means the hand keeps dropping out of detection for longer than `dropout_ms`.
 
+## The patient's path (sign model + face + Gemini)
+
+The patient screen asks one thing at a time:
+
+1. **Sign how you feel.** The camera and signing turn on by themselves. Each sign (hands up, sign, hands down) is matched by the recorded-sign model, and the words appear as they are read. **Done** ends it. If signing doesn't work, the patient can tap Pain, Headache, Feel sick, Fever, Dizzy or Breathing instead.
+2. **Where does it hurt?** Tap the body, or point with the camera. Only for pain, and skipped if the place was already signed or pointed at.
+3. **How much does it hurt?** Tap 0–10.
+4. **Is this right?** "You said: I have left chest pain. It is 7 out of 10." Then **Send to the doctor** or **Start again**.
+
+The clinician screen then gets a sentence written by Gemini from the sign labels and the face ("The patient reports pain at the left side of the chest and rates the pain 7 out of 10."). It is spoken in a tone that follows the face, the place and rating go on the pain map, and anything that depends on a facial marker keeps the **Confirm meaning** flag. Rating central pain 8 or more counts as urgent, like chest pain.
+
+How it is wired (all in the one camera program the page starts, `apps/pointing`):
+- `signs.py` loads `apps/recognition-python/app/models/recorded_asl_v1` (DTW + kNN; chest, face, fever, headache, jaw, nausea, pain, stomach) through that app's own `RecognitionPipeline`. It flips the hand points to match the mirrored recordings, tries both hands so left-handed signers match too, and drops matches further than 2.0. Retrain with `apps/recognition-python/app/scripts/build_model.py` and the camera program picks it up on its next start.
+- `face.py` runs `apps/facial_grammar`'s rules on the face during the signs. The resting face is learned while the patient isn't signing, so there is no calibration step. Its flag and `to_nmm()` scores go with the signs.
+- The page controls signing with `POST http://127.0.0.1:8765/sign` (`start` / `done` / `cancel`), accepted only from the web page's origin (`CORS_ORIGIN`).
+- Only sign labels and marker scores leave the program: frames, hand points and face points never do.
+
+**Teaching it more signs:** open `/record` (linked at the bottom of the Visits page). Pick a sign (or add a new one, e.g. `dizzy`), press **Record**, sign once with your hands down before and after, and repeat 5–10 times, ideally with 2–3 people. **Rebuild model** backs up the current model to `apps/recognition-python/recorder/model_backups/`, runs `build_model.py`, shows how many examples it recognises (and which signs it mixes up), and the camera uses the new model straight away. Examples are saved as hand points only in `apps/recognition-python/recorder/recordings/` (gitignored). The first time the camera starts, the model's existing examples are copied there so rebuilds keep them. Commit the rebuilt `app/models/recorded_asl_v1/` so teammates get it. A new sign also needs adding to the patient's words (`PATIENT_VOCAB` in `packages/shared/src/patient.ts`) and the sentence rules (`language.ts`) to read well.
+
+Setup once on each computer: `apps/pointing/scripts/fetch_models.sh` (in Git Bash on Windows) now also downloads `face_landmarker.task`. Without it, signs still work and are sent as plain statements.
+
 ## Shared contracts (agree these first)
 
 - **Sign event:** label, confidence, start/end time. Wizard mode emits the same shape.
@@ -124,7 +145,7 @@ Tuning in the lab: the overlay shows the zone, the gesture, the hold progress, f
 
 ## Connecting sign recognition and facial grammar
 
-When the patient pauses after a clause, the vision process POSTs the signs and the facial-grammar result to the API's `/clauses` endpoint. That creates a **draft** (HTTP 202): the patient screen shows it in plain words ("You said no. You do not have chest pain.", plus what the face showed) with **Send**, **Redo** and **Edit**. Nothing is saved or sent to the clinician until the patient presses Send; the draft lives in server memory and goes to patient screens only. Then the server writes the clinical sentence (Gemini, with a rule-based fallback), saves it with how the patient confirmed it (`sent`, `edited`, or `auto_sent`, plus how many times they signed again) and pushes it to the clinician screen. Urgent drafts (e.g. chest pain) send themselves after 10 s if the patient does not answer (`URGENT_AUTOSEND_MS`), and the clinician sees "Sent automatically: patient did not answer". Add `"direct": true` to a `/clauses` body to skip the patient's check (testing and the wizard), or set `PATIENT_CONFIRM=false`. The facial "Confirm meaning" flag for the clinician is unchanged. Every patient action is logged in `patient_actions` (sign labels only).
+When the patient pauses after a clause, the vision process POSTs the signs and the facial-grammar result to the API's `/clauses` endpoint. That creates a **draft** (HTTP 202): for pain the patient screen asks where and how much (each answer is added to the draft's signs as `POINT-<ZONE>` and `NUM-<n>`), then shows it in plain words ("You said no. You do not have chest pain.", plus what the face showed) with **Send to the doctor** and **Start again**. Nothing is saved or sent to the clinician until the patient presses Send; the draft lives in server memory and goes to patient screens only. Then the server writes the clinical sentence (Gemini, with a rule-based fallback), saves it with how the patient confirmed it (`sent`, `edited`, or `auto_sent`, plus how many times they signed again) and pushes it to the clinician screen. Urgent drafts (e.g. chest pain) send themselves after 10 s if the patient does not answer (`URGENT_AUTOSEND_MS`), and the clinician sees "Sent automatically: patient did not answer". Add `"direct": true` to a `/clauses` body to skip the patient's check (testing and the wizard), or set `PATIENT_CONFIRM=false`. The facial "Confirm meaning" flag for the clinician is unchanged. Every patient action is logged in `patient_actions` (sign labels only).
 
 From Python (`apps/facial_grammar`), standard library only:
 
@@ -181,7 +202,7 @@ The sign-reading program usually holds the webcam, so the patient's call video i
 
 ## Non-negotiables
 
-- **Privacy:** camera frames and landmarks are processed in the local vision process and discarded. The API rejects anything that isn't text or numbers. Patients are tokens, not names. The UI shows a live "video frames sent: 0" counter. In call mode the patient's video goes only to the doctor, peer to peer and encrypted (see Call mode). Chrome's `SpeechRecognition` sends audio to the cloud, so don't use it outside a clearly labelled stand-in.
+- **Privacy:** camera frames and landmarks are processed in the local vision process and discarded. The API rejects anything that isn't text or numbers. The only personal data is the name typed at check-in; it is never sent to Gemini. The UI shows a live "video frames sent: 0" counter. In call mode the patient's video goes only to the doctor, peer to peer and encrypted (see Call mode). Chrome's `SpeechRecognition` sends audio to the cloud, so don't use it outside a clearly labelled stand-in.
 - **Safety:** a wrong meaning is a clinical risk, so lines that depend on a marker need clinician confirmation before charting. Signapse does not replace qualified interpreters and is not HIPAA/PHIPA compliant.
 - **Demo resilience:** wizard mode (an operator triggers signs through the same pipeline) must work end to end before hour 8. Event writes are queued and must never block the UI.
 

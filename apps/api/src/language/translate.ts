@@ -1,4 +1,4 @@
-import { buildClinicalSentence, describeFace, type GrammarFlag, type TranslateResult } from "@signapse/shared";
+import { buildClinicalSentence, describeFace, keepsSigns, type GrammarFlag, type TranslateResult } from "@signapse/shared";
 import { geminiSentence, type GeminiConfig } from "./gemini.js";
 
 // Signs + facial grammar -> clinical sentence. Priority and confirmation come
@@ -13,6 +13,9 @@ export async function translateClause(
 ): Promise<TranslateResult> {
   const face = describeFace(nmm, flag);
   const base = buildClinicalSentence(gloss, flag, confidence, face.strong);
-  const ai = gemini ? await geminiSentence(gloss, flag, face, gemini) : null;
+  const written = gemini ? await geminiSentence(gloss, flag, face, gemini) : null;
+  // If Gemini dropped a symptom, place, side or the rating, the rule-based sentence is used.
+  const ai = written && keepsSigns(gloss, written) ? written : null;
+  if (written && !ai) console.warn("Gemini sentence left out part of the signs; using the rule-based sentence.");
   return { ...base, sentence: ai ?? base.sentence, source: ai ? "gemini" : "template", face: face.summary };
 }

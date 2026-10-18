@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import type { Encounter } from "@signapse/shared";
 import { Logo } from "./brand";
 
-type Screen = "visits" | "patient" | "clinician" | "review" | "call" | "wizard";
+type Screen = "visits" | "patient" | "clinician" | "review" | "call" | "wizard" | "record";
 
 interface Props {
   screen: Screen;
@@ -21,6 +21,7 @@ const SCREEN_LABEL: Record<Screen, string> = {
   review: "Review",
   call: "Call",
   wizard: "Wizard",
+  record: "Record signs",
 };
 
 // Shared header for every screen: brand, visit token, live status and
@@ -40,7 +41,7 @@ export function AppShell({ screen, encounter, connected, actions, children }: Pr
   const links: { screen: Screen; href: string }[] = [
     { screen: "visits", href: "/" },
     ...(encounter
-      ? (["patient", "clinician", "review", "wizard"] as const).map((s) => ({
+      ? (["patient", "clinician", "review"] as const).map((s) => ({
           screen: s,
           href: `/${s}?e=${encounter.encounterId}`,
         }))

@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { cameraStatus, startCamera, stopCamera } from "../../lib/api";
 import { Icon } from "../brand";
+import { SignPanel } from "./SignPanel";
+import { CAMERA_URL } from "./useSigning";
+
+export { CAMERA_URL };
 
 // The pointing camera runs as a local Python program (apps/pointing). One click
 // here asks the server on this computer to start it, then the page shows its
 // picture. The picture is served from this computer only: the video never goes
-// through the Signapse server.
-export const CAMERA_URL = (import.meta.env.VITE_CAMERA_URL ?? "http://127.0.0.1:8765").replace(/\/$/, "");
+// through the Signapse server. The same program reads signs (SignPanel).
 const START_TIMEOUT_MS = 25_000;
 
 export function CameraPanel({
@@ -14,13 +17,21 @@ export function CameraPanel({
   lookingAt,
   hideFeed,
   onBeforeStart,
+  autoStart,
+  signing = true,
+  pointHint = true,
 }: {
   encounterId: string;
   lookingAt?: string;
   hideFeed?: boolean; // the call screen shows the picture itself
   onBeforeStart?: () => void; // e.g. free the webcam for the camera program
+  autoStart?: boolean; // patient station: turn the camera and signing on without a click
+  signing?: boolean; // false: the camera is only for pointing here (no signing box)
+  pointHint?: boolean; // false: don't invite pointing (the patient is only signing here)
 }) {
   const [on, setOn] = useState(false);
+  const [checked, setChecked] = useState(false); // the first "is it on?" check has answered
+  const autoTried = useRef(false);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string>();
   const [manual, setManual] = useState(false); // launcher unavailable: show the command instead
@@ -42,6 +53,7 @@ export function CameraPanel({
         if (!stopped) setOn(false);
       } finally {
         clearTimeout(timer);
+        if (!stopped) setChecked(true);
       }
       // Starting took too long: say what the program printed.
       if (!stopped && startedAt.current && Date.now() - startedAt.current > START_TIMEOUT_MS) {
@@ -104,6 +116,13 @@ export function CameraPanel({
     }
   };
 
+  // Patient station: start the camera once by itself. If that fails, the button and the reason show.
+  useEffect(() => {
+    if (!autoStart || !checked || on || starting || autoTried.current) return;
+    autoTried.current = true;
+    void start();
+  }, [autoStart, checked, on, starting]);
+
   const stop = async () => {
     await stopCamera();
     setOn(false);
@@ -133,15 +152,20 @@ export function CameraPanel({
       {on ? (
         <>
           {!hideFeed && <img className="camera-feed" src={`${CAMERA_URL}/video`} alt="Live camera with body tracking" />}
-          <p className="camera-reading" aria-live="polite">
-            {lookingAt ? (
-              <>
-                Pointing at <strong>{lookingAt}</strong>. Nod twice to confirm.
-              </>
-            ) : (
-              "Point at where it hurts."
-            )}
-          </p>
+          {pointHint && (
+            <p className="camera-reading" aria-live="polite">
+              {lookingAt ? (
+                <>
+                  Pointing at <strong>{lookingAt}</strong>. Nod twice to confirm.
+                </>
+              ) : signing ? (
+                "Point at where it hurts, or sign it."
+              ) : (
+                "Point at where it hurts."
+              )}
+            </p>
+          )}
+          {signing && <SignPanel cameraOn={on} autoStart={autoStart} />}
           <p className="camera-note">
             <Icon name="lock" size={14} />
             {hideFeed
@@ -162,7 +186,11 @@ export function CameraPanel({
         <>
           <div className="camera-off">
             <Icon name="hands" size={26} />
-            <p>Turn the camera on, then point at where it hurts. It finds the body part for you.</p>
+            <p>
+              {pointHint
+                ? "Turn the camera on, then point at where it hurts. It finds the body part for you."
+                : "Turn the camera on to sign how you feel."}
+            </p>
             <button className="btn primary" onClick={start} disabled={starting}>
               {starting ? "Starting camera…" : "Start camera"}
             </button>

@@ -1,5 +1,5 @@
 import { ZONE_LABELS } from "./bodyZones";
-import { complaintOf, signedLevel } from "./language";
+import { complaintOf, ratedFlag, signedLevel } from "./language";
 import type { GrammarFlag } from "./types";
 
 // What the patient sees before anything is sent: their own signing in short,
@@ -10,7 +10,10 @@ import type { GrammarFlag } from "./types";
 // Signs the patient can pick when fixing a word, with plain labels.
 export const PATIENT_VOCAB: { token: string; text: string }[] = [
   { token: "PAIN", text: "Pain" },
+  { token: "HEADACHE", text: "Headache" },
   { token: "HEAD", text: "Head" },
+  { token: "FACE", text: "Face" },
+  { token: "JAW", text: "Jaw" },
   { token: "CHEST", text: "Chest" },
   { token: "STOMACH", text: "Stomach" },
   { token: "BACK", text: "Back" },
@@ -18,6 +21,21 @@ export const PATIENT_VOCAB: { token: string; text: string }[] = [
   { token: "DIZZY", text: "Dizzy" },
   { token: "NAUSEA", text: "Feel sick" },
   { token: "FEVER", text: "Fever" },
+  { token: "VOMIT", text: "Throwing up" },
+  { token: "COUGH", text: "Cough" },
+  { token: "CHILLS", text: "Chills" },
+  { token: "TIRED", text: "Tired" },
+  { token: "WEAK", text: "Weak" },
+  { token: "FAINT", text: "Feel faint" },
+  { token: "NUMB", text: "Numb" },
+  { token: "RASH", text: "Rash" },
+  { token: "ITCH", text: "Itchy" },
+  { token: "SWELLING", text: "Swelling" },
+  { token: "BLEEDING", text: "Bleeding" },
+  { token: "DIARRHEA", text: "Diarrhea" },
+  { token: "ALLERGY", text: "Allergic reaction" },
+  { token: "ANXIOUS", text: "Anxious" },
+  { token: "HEARTATTACK", text: "Heart attack" },
   { token: "YES", text: "Yes" },
   { token: "NO", text: "No" },
 ];
@@ -53,22 +71,24 @@ export function signText(token: string): string {
 }
 
 // "You said: I have chest pain." / "You said no. You do not have chest pain."
-export function patientSentence(gloss: string[], flag: GrammarFlag): string {
+export function patientSentence(gloss: string[], faceFlag: GrammarFlag): string {
+  const flag = ratedFlag(gloss, faceFlag);
   if (gloss.length === 1 && gloss[0] === "YES") return "You said yes.";
   if (gloss.length === 1 && gloss[0] === "NO") return "You said no.";
   const level = signedLevel(gloss);
   const { complaint } = complaintOf(gloss);
   if (level !== undefined && !complaint) return `You rate your pain ${level} out of 10.`;
   if (!complaint) return `You signed: ${gloss.map(signText).join(", ")}.`;
+  const rated = level !== undefined ? ` It is ${level} out of 10.` : "";
   switch (flag) {
     case "question":
       return `You asked about ${complaint}.`;
     case "negation":
       return `You said no. You do not have ${complaint}.`;
     case "intensified":
-      return `You said it is very bad: ${complaint}.`;
+      return `You said it is very bad: ${complaint}.${rated}`;
     default:
-      return `You said: I have ${complaint}.`;
+      return `You said: I have ${complaint}.${rated}`;
   }
 }
 

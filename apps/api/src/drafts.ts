@@ -3,6 +3,7 @@ import {
   assessPriority,
   patientFaceLine,
   patientSentence,
+  ratedFlag,
   type DraftView,
   type GrammarFlag,
 } from "@signapse/shared";
@@ -43,13 +44,15 @@ export function setAutoSendHandler(fn: (d: Draft) => void) {
 export const isUrgent = (d: Pick<Draft, "gloss" | "grammarFlag">) => assessPriority(d.gloss, d.grammarFlag) === "urgent";
 
 export function view(d: Draft): DraftView {
+  // Once pain is rated, the patient's answer is the meaning, not the face (ratedFlag).
+  const flag = ratedFlag(d.gloss, d.grammarFlag);
   return {
     id: d.id,
     encounterId: d.encounterId,
     gloss: d.gloss,
-    grammarFlag: d.grammarFlag,
-    patientText: patientSentence(d.gloss, d.grammarFlag),
-    faceText: patientFaceLine(d.grammarFlag),
+    grammarFlag: flag,
+    patientText: patientSentence(d.gloss, flag),
+    faceText: patientFaceLine(flag),
     urgent: isUrgent(d),
     autoSendAt: d.autoSendAt ? new Date(d.autoSendAt).toISOString() : undefined,
     now: new Date().toISOString(),

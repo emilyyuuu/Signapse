@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { isAllowedSign, type PatientConfirmation } from "@signapse/shared";
+import { isAllowedSign, painReadingOf, ratedFlag, type PatientConfirmation } from "@signapse/shared";
 import type { Store } from "../db/client.js";
 import {
   editDraft,
@@ -42,7 +42,9 @@ export function draftRoutes(store: Store, gemini: GeminiConfig | null) {
     // The patient is waiting for "Sent", so Gemini gets a short limit here and the instant
     // rule-based sentence takes over if it is slow. Auto-sends are urgent: no Gemini at all.
     const quick = gemini ? { ...gemini, timeoutMs: Math.min(gemini.timeoutMs, 1500) } : null;
-    const t = await translateClause(d.gloss, d.grammarFlag, d.confidence, d.nmm, action === "auto_sent" ? null : quick);
+    // A rated pain clause is the patient's own answer: saved and worded as a plain report.
+    const grammarFlag = ratedFlag(d.gloss, d.grammarFlag);
+    const t = await translateClause(d.gloss, grammarFlag, d.confidence, d.nmm, action === "auto_sent" ? null : quick);
     const patientConfirmation: PatientConfirmation = {
       action,
       redos: d.redos,
@@ -54,13 +56,21 @@ export function draftRoutes(store: Store, gemini: GeminiConfig | null) {
       kind: "sign",
       gloss: d.gloss,
       nmm: d.nmm,
-      grammarFlag: d.grammarFlag,
+      grammarFlag,
       sentence: t.sentence,
       confidence: d.confidence,
       patientConfirmation,
     });
     broadcast(d.encounterId, { type: "utterance", data: utterance });
     broadcast(d.encounterId, { type: "draft_closed", data: { id: d.id, action } }, "patient");
+    // Where it hurts and how much also go on the doctor's pain map.
+    const reading = painReadingOf(d.gloss);
+    if (reading) {
+      await store
+        .insertPain({ encounterId: d.encounterId, ...reading, source: d.gloss.some((g) => g.startsWith("POINT-")) ? "pointing" : "tap" })
+        .then((row) => broadcast(d.encounterId, { type: "pain", data: row }))
+        .catch((err) => console.warn("could not save pain reading:", err.message));
+    }
     await store
       .insertPatientAction({
         encounterId: d.encounterId,
