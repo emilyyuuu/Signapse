@@ -93,6 +93,16 @@ export function UtteranceLine({
               </>
             )
           )}
+          {u.patientConfirmation && (
+            <span className={`chip ${u.patientConfirmation.action === "auto_sent" ? "confirm" : "ok"}`}>
+              {u.patientConfirmation.action === "auto_sent"
+                ? "Sent automatically: patient did not answer"
+                : u.patientConfirmation.action === "edited"
+                  ? "Patient edited, then confirmed"
+                  : "Patient confirmed"}
+              {u.patientConfirmation.redos > 0 ? ` · signed again ${u.patientConfirmation.redos}x` : ""}
+            </span>
+          )}
           {pointed && (
             <span className="chip flag">
               <Icon name="body" size={12} /> Pointed: {ZONE_LABELS[pointed] ?? pointed}

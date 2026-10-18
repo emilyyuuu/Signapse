@@ -16,6 +16,7 @@ function item(u: StoredUtterance): NoteItem {
     confirmed: a.confirmed,
     needsConfirm: a.needsConfirm,
     verifiedBy: u.verifiedBy,
+    patientAction: u.patientConfirmation?.action,
   };
 }
 
@@ -58,6 +59,7 @@ export function buildChartNote(
     encounter: {
       encounterId: encounter.encounterId,
       patientRef: encounter.patientRef,
+      patientName: encounter.patientName,
       clinicianId: encounter.clinicianId,
       startedAt: encounter.startedAt,
       endedAt: encounter.endedAt,
@@ -97,7 +99,7 @@ export function renderChartNote(note: ChartNote, formatTime: (iso: string) => st
   const out: string[] = [];
   const e = note.encounter;
   out.push("CLINICAL ENCOUNTER NOTE (DRAFT)");
-  out.push(`Patient: ${e.patientRef}   Clinician: ${e.clinicianId}   Started: ${formatTime(e.startedAt)}`);
+  out.push(`Patient: ${e.patientName ?? "(name not entered)"}   ID: ${e.patientRef}   Started: ${formatTime(e.startedAt)}`);
   out.push("Source: Signapse sign-language translation (ASL). Not a substitute for a qualified interpreter.");
 
   if (note.aiSummary) {
@@ -111,7 +113,13 @@ export function renderChartNote(note: ChartNote, formatTime: (iso: string) => st
       : i.needsConfirm
         ? "  [UNCONFIRMED: meaning depends on facial expression]"
         : "";
-    return `  ${formatTime(i.ts)}  ${i.text}${status}`;
+    const patient =
+      i.patientAction === "auto_sent"
+        ? "  [sent automatically, patient did not respond]"
+        : i.patientAction === "edited"
+          ? "  [patient edited it before sending]"
+          : "";
+    return `  ${formatTime(i.ts)}  ${i.text}${status}${patient}`;
   };
   const section = (title: string, items: NoteItem[], always = false) => {
     if (!items.length && !always) return;

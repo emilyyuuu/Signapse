@@ -13,6 +13,7 @@ import { useRoom } from "../../lib/useRoom";
 import { AppShell } from "../../components/AppShell";
 import { EmptyArt, Icon } from "../../components/brand";
 import { PageHeader } from "../../components/PageHeader";
+import { NameEditor } from "../../components/visit/NameEditor";
 import { BodyMap } from "../../components/bodymap/BodyMap";
 import { PainList } from "../../components/bodymap/PainList";
 import { usePainMap } from "../../components/bodymap/usePainMap";
@@ -48,12 +49,13 @@ export function ClinicianPage() {
 
   const { connected } = useRoom(encounterId, (msg) => {
     handlePoint(msg);
-    if (msg.type === "point" || msg.type === "gesture") return; // patient-screen only
+    // Patient-screen messages. The server never sends drafts here; this guards against it anyway.
+    if (msg.type === "point" || msg.type === "gesture" || msg.type === "draft" || msg.type === "draft_closed") return;
     if (msg.type === "pain") {
       apply(msg.data);
       return;
     }
-    if (msg.type === "ended") {
+    if (msg.type === "ended" || msg.type === "encounter") {
       setEncounter(msg.data);
       return;
     }
@@ -69,7 +71,7 @@ export function ClinicianPage() {
   });
 
   const confirm = async (id: string) => {
-    const row = await verifyUtterance(id, encounter?.clinicianId ?? "clinician");
+    const row = await verifyUtterance(id);
     if (row) setLines((prev) => mergeLines(prev, [row]));
     return !!row;
   };
@@ -77,7 +79,7 @@ export function ClinicianPage() {
   const newVisit = async () => {
     setBusy(true);
     try {
-      const e = await createEncounter(encounter?.clinicianId);
+      const e = await createEncounter();
       location.href = `/clinician?e=${e.encounterId}`;
     } catch (err) {
       console.warn(err);
@@ -149,8 +151,9 @@ export function ClinicianPage() {
         <p className="muted">This browser has no built-in voice. Sentences are shown as text only.</p>
       )}
 
-      <PageHeader greet={`Visit ${encounter?.patientRef ?? ""}`} title="Live translation">
+      <PageHeader greet={encounter ? `Visit ${encounter.patientRef}` : ""} title="Live translation">
         Signs and facial expressions from the patient station, as clinical sentences.
+        {encounter && <NameEditor encounter={encounter} onChange={setEncounter} />}
       </PageHeader>
 
       <div className="row">
