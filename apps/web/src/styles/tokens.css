@@ -1,7 +1,7 @@
 /* Signapse design system, after the reference set: light-grey ground with a
    soft light-blue wash at the top, white cards with very soft shadows, bright
    blue pill buttons, black segmented tabs, round white icon buttons, tinted
-   tags and service chips, an "insight" card with a blue orb, and concentric
+   tags, an "insight" card with a blue orb, and concentric
    rings for waiting states. Urgent stays a strong red. */
 :root {
   --bg: #f2f4f7;
@@ -50,7 +50,6 @@
   /* Light mode only, whatever the system theme. */
   color-scheme: light;
 }
-
 
 * { box-sizing: border-box; }
 html { background: var(--bg); }
@@ -103,10 +102,8 @@ a:hover { text-decoration: underline; }
 /* Cards */
 .panel { position: relative; background: var(--surface); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); }
 .panel.pop { box-shadow: none; }
-.pop-blue, .pop-teal { background: linear-gradient(135deg, var(--surface) 0%, var(--blue-soft) 100%); }
-.pop-sage { background: var(--green-soft); }
-.pop-yellow, .pop-orange { background: var(--amber-soft); }
-.pop-pink { background: var(--lilac-soft); }
+.pop-blue { background: linear-gradient(135deg, var(--surface) 0%, var(--blue-soft) 100%); }
+.pop-yellow { background: var(--amber-soft); }
 
 /* Buttons: blue pills for actions, black for the main call to action */
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 0; background: var(--surface-2); color: var(--ink); border-radius: 999px; padding: 10px 18px; font-weight: 500; line-height: 1.2; transition: transform 0.12s ease, background 0.15s ease, box-shadow 0.15s ease; }
@@ -156,31 +153,10 @@ a:hover { text-decoration: underline; }
 .banner-pill:hover .arrow { transform: translateX(4px); }
 .banner-pill b { font-weight: 500; }
 
-/* Service chips: tinted pill with an icon in a white circle */
-.services { display: flex; gap: 10px; flex-wrap: wrap; }
-.service { display: inline-flex; align-items: center; gap: 10px; padding: 6px 18px 6px 6px; border-radius: 999px; color: var(--ink); font-weight: 500; }
-.service:hover { text-decoration: none; filter: brightness(0.98); }
-.service .circle { width: 34px; height: 34px; border-radius: 50%; background: var(--surface); display: grid; place-items: center; }
-.service.blue { background: var(--blue-soft); } .service.blue .circle { color: var(--blue); }
-.service.green { background: var(--green-soft); } .service.green .circle { color: var(--green); }
-.service.lilac { background: var(--lilac-soft); } .service.lilac .circle { color: var(--lilac); }
-
 /* Card header: a plain tinted icon circle + title */
 .orb { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0; background: var(--blue-soft); color: var(--blue); }
 .insight-head { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
 .insight-head h2 { font-size: 18px; }
-
-/* Iridescent sphere (the AI signature) */
-.sphere { border-radius: 50%; flex-shrink: 0;
-  background:
-    radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0) 32%),
-    radial-gradient(circle at 70% 72%, #f7b6c8 0%, rgba(247, 182, 200, 0) 45%),
-    radial-gradient(circle at 25% 75%, #b9a8ff 0%, rgba(185, 168, 255, 0) 50%),
-    radial-gradient(circle at 60% 40%, #6fa4ff 0%, #3d7bf1 60%, #2f5fd0 100%);
-  box-shadow: inset -10px -14px 30px rgba(47, 95, 208, 0.35), inset 8px 10px 24px rgba(255, 255, 255, 0.5), 0 24px 50px rgba(61, 123, 241, 0.25);
-  animation: sphere 10s ease-in-out infinite; }
-@keyframes sphere { 0%, 100% { transform: translateY(0) rotate(0deg); filter: hue-rotate(0deg); } 50% { transform: translateY(-8px) rotate(8deg); filter: hue-rotate(-18deg); } }
-.sphere.mini { box-shadow: inset -3px -4px 8px rgba(47, 95, 208, 0.35), inset 2px 3px 6px rgba(255, 255, 255, 0.5); animation-duration: 6s; }
 
 /* Quick-action cards: icon circle top-left, up-right arrow circle top-right */
 .quick { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
@@ -245,7 +221,6 @@ a:hover { text-decoration: underline; }
 .home-top .field { width: 100%; text-align: left; }
 /* Hero illustration */
 .hero-art { position: relative; width: 340px; height: 230px; margin-bottom: 8px; }
-.hero-blob { position: absolute; left: 70px; top: 10px; width: 200px; height: 200px; animation: morph 12s ease-in-out infinite; }
 .hero-hands { position: absolute; left: 95px; top: 28px; filter: drop-shadow(0 16px 28px rgba(61, 123, 241, 0.28)); animation: float 5s ease-in-out infinite; }
 .hero-art .shape { position: absolute; display: block; }
 .s-peach { width: 26px; height: 26px; border-radius: 50%; background: #ffd9c7; left: 52px; top: 24px; animation: float 6s ease-in-out infinite 0.5s; }
@@ -258,7 +233,6 @@ a:hover { text-decoration: underline; }
 .b-text svg { color: var(--green); }
 @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
 @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
-@keyframes morph { 0%, 100% { transform: rotate(0deg) scale(1); } 50% { transform: rotate(10deg) scale(1.04); } }
 @media (max-width: 520px) { .hero-art { transform: scale(0.85); } }
 a.icon-btn:hover { text-decoration: none; }
 
@@ -318,8 +292,6 @@ a.icon-btn:hover { text-decoration: none; }
 .note { width: 100%; min-height: 360px; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6; background: var(--surface-2); color: var(--ink); border: 0; border-radius: var(--radius-sm); padding: 14px; resize: vertical; }
 
 /* Body map */
-.bodycard { display: flex; flex-direction: column; align-items: center; }
-.bodycard .bodymap { max-width: 280px; }
 .bodymap { width: 100%; max-width: 250px; height: auto; display: block; margin: 0 auto; }
 .zone { stroke: color-mix(in srgb, var(--blue) 22%, transparent); stroke-width: 1.2; transition: fill 0.25s ease; }
 .zone.interactive { cursor: pointer; }
@@ -470,7 +442,6 @@ body:has(.call-layout) .shell-in { max-width: 1360px; }
 .draft .eyebrow { margin: 0 0 6px; color: var(--ink); font-size: 14px; }
 .draft-text { margin: 0 0 10px; font-size: clamp(30px, 4.4vw, 46px); font-weight: 500; letter-spacing: -0.02em; line-height: 1.15; }
 .draft-face { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; font-size: clamp(20px, 2.4vw, 26px); }
-.draft-tags { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 18px; }
 .draft-tag { padding: 6px 14px; border-radius: 999px; background: var(--ink); color: #fff; font-size: 18px; font-weight: 600; }
 .draft-tag.plain { background: var(--surface-2); color: var(--ink); border: 2px solid var(--ink); }
 .draft-timer { margin: 0 0 18px; padding: 14px 18px; border-radius: var(--radius-sm); background: var(--signal-soft); border: 2px solid var(--signal); }
@@ -478,20 +449,13 @@ body:has(.call-layout) .shell-in { max-width: 1360px; }
 .draft-timer .bar { height: 12px; background: #fff; }
 .draft-timer .bar i { background: var(--signal); transition: width 0.25s linear; }
 .draft-actions { display: flex; flex-wrap: wrap; gap: 14px; }
-.draft-help { margin: 12px 0 0; font-size: 17px; color: var(--ink); }
 .btn.huge { min-height: 76px; min-width: 150px; padding: 14px 32px; font-size: 24px; font-weight: 700; border: 3px solid var(--ink); background: #fff; color: var(--ink); }
 .btn.huge.primary { background: #1e3a8a; border-color: #1e3a8a; color: #fff; flex: 1 1 220px; }
 .btn.huge:disabled { opacity: 0.6; }
-.draft-edit { margin-top: 24px; padding-top: 20px; border-top: 3px solid var(--ink); }
-.draft-edit h2 { margin: 0 0 12px; font-size: 26px; }
 .draft-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 22px; }
 .draft-choices.words { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); margin: 16px 0 0; }
 .choice { min-height: 64px; padding: 12px 16px; border-radius: var(--radius-sm); border: 3px solid var(--ink); background: #fff; color: var(--ink); font-size: 21px; font-weight: 600; text-align: left; }
 .choice[aria-pressed="true"] { background: #1e3a8a; border-color: #1e3a8a; color: #fff; }
-.draft-signlist { list-style: none; margin: 0 0 14px; padding: 0; display: flex; flex-direction: column; gap: 10px; }
-.draft-signlist li { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
-.draft-signname { flex: 1 1 160px; font-size: 24px; font-weight: 600; }
-.draft-edit .btn { min-height: 56px; font-size: 19px; font-weight: 600; border: 3px solid var(--ink); background: #fff; color: var(--ink); }
 .outcome { margin: 0 0 18px; padding: 16px 20px; border-radius: var(--radius-sm); background: var(--green-soft); border: 2px solid var(--green); font-size: 22px; font-weight: 600; color: var(--ink); animation: rise 0.3s both; }
 
 /* Check-in on the patient station, and the name row on staff screens */

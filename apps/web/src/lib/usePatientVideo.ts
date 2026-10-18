@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CAMERA_URL } from "../components/camera/CameraPanel";
+import { CAMERA_URL } from "./api";
 
 export type VideoSource = "preview" | "webcam" | "none";
 

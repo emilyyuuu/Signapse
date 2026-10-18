@@ -1,7 +1,5 @@
 import { useEffect, useState } from "react";
-
-// The local camera program (apps/pointing) on this computer.
-export const CAMERA_URL = (import.meta.env.VITE_CAMERA_URL ?? "http://127.0.0.1:8765").replace(/\/$/, "");
+import { CAMERA_URL } from "../../lib/api";
 
 // The signing session in the local camera program (apps/pointing/signs.py). The
 // page talks to it on this computer only; it sends sign labels to the server

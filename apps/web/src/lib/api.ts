@@ -20,6 +20,9 @@ import {
 
 export const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8787";
 
+// The local camera program (apps/pointing) on this computer.
+export const CAMERA_URL = (import.meta.env.VITE_CAMERA_URL ?? "http://127.0.0.1:8765").replace(/\/$/, "");
+
 // Both screens join the same encounter, picked with ?e=<id> in the URL.
 export function encounterIdFromUrl() {
   return new URLSearchParams(location.search).get("e") ?? DEMO_ENCOUNTER_ID;

@@ -162,11 +162,6 @@ export function HeroArt() {
   );
 }
 
-// The iridescent sphere: soft blue, lilac and peach, slowly shifting.
-export function Sphere({ size = 180, style }: { size?: number; style?: CSSProperties }) {
-  return <div className="sphere" style={{ width: size, height: size, ...style }} aria-hidden="true" />;
-}
-
 // Waiting / empty state: an icon in a white circle with pulsing rings.
 export function EmptyArt({ icon }: { icon: IconName }) {
   return (

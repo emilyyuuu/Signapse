@@ -34,7 +34,6 @@ const painSchema = z
   })
   .strict();
 
-// The patient is pointing at a zone on their own body. Zone id and a score only.
 // A head gesture from the camera: a nod confirms the pointed body part, a shake cancels.
 const gestureSchema = z
   .object({
@@ -44,6 +43,7 @@ const gestureSchema = z
   })
   .strict();
 
+// The patient is pointing at a zone on their own body. Zone id and a score only.
 const pointSchema = z
   .object({
     encounterId: z.string().uuid(),

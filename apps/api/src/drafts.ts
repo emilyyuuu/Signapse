@@ -67,8 +67,6 @@ export const pendingView = (encounterId: string): DraftView | undefined => {
   return d ? view(d) : undefined;
 };
 
-export const getDraft = (encounterId: string) => drafts.get(encounterId);
-
 // Urgent drafts send themselves so an emergency can't wait on a button press.
 function arm(d: Draft, from = Date.now()) {
   clearTimeout(d.timer);

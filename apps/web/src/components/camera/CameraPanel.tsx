@@ -1,13 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { API_URL, cameraStatus, startCamera, stopCamera } from "../../lib/api";
+import { API_URL, CAMERA_URL, cameraStatus, startCamera, stopCamera } from "../../lib/api";
 import { Icon } from "../brand";
 import { SignPanel } from "./SignPanel";
-import { CAMERA_URL } from "./useSigning";
-
-export { CAMERA_URL };
 
 // The pointing camera runs as a local Python program (apps/pointing). One click
-// here asks the server on this computer to start it, then the page shows its
+// here asks the camera helper on this computer (pointing.launcher, or the API in
+// local development) to start it, then the page shows its
 // picture. The picture is served from this computer only: the video never goes
 // through the Signapse server. The same program reads signs (SignPanel).
 const START_TIMEOUT_MS = 25_000;

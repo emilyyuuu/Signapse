@@ -1,4 +1,3 @@
-from os import error
 import threading
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
@@ -58,13 +57,6 @@ class Landmark:
         with self._lock:
             self._result = result
             self._result_timestamp_ms = timestamp_ms
-
-        print(
-            "MediaPipe callback received:",
-            timestamp_ms,
-            "Hands:",
-            len(result.hand_landmarks),
-        )
 
     @staticmethod
     def convertImage(bgr: np.ndarray) -> mp.Image:
@@ -145,44 +137,6 @@ class Landmark:
                     ]
 
             return timestamp, landmarks
-
-        def to_numpy(self) -> np.ndarray:
-            """
-            Convert the latest detected hands to a NumPy array.
-
-            Shape: (2, 21, 3)
-
-            Hand 0 = left
-            Hand 1 = right
-
-            Missing hands are represented by NaN.
-            """
-            landmarks = np.full(
-                (2, 21, 3),
-                np.nan,
-                dtype=np.float32,
-            )
-
-            result = self.res()
-
-            if result is None or not result.hand_landmarks:
-                return landmarks
-
-            for hand, handedness in zip(
-                result.hand_landmarks,
-                result.handedness,
-            ):
-                label = handedness[0].category_name
-
-                hand_index = 0 if label == "Left" else 1
-
-                for index, point in enumerate(hand):
-                    landmarks[hand_index, index] = [
-                        point.x,
-                        point.y,
-                        point.z,
-                    ]
-            return landmarks
 
     def close(self) -> None:
         self._landmarker.close()

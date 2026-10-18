@@ -4,7 +4,6 @@ from collections import defaultdict
 from pathlib import Path
 
 import numpy as np
-import torch
 
 from datasets.google_asl import load_labels, load_sequence
 from recognition.knn import predict_knn

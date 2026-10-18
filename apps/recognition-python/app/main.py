@@ -9,7 +9,6 @@ from vision.landmarks import Landmark
 
 from model_loader import load_model
 from recognition.pipeline import RecognitionPipeline
-import numpy as np
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -38,7 +37,6 @@ def main() -> None:
     print("SPACE = start/stop recording")
     print("Q = quit")
 
-    # Keep your existing webcam and landmark detector.
     webcam = WebcamSource(fps=30)
     landmark = Landmark()
 
@@ -86,17 +84,9 @@ def main() -> None:
                 timestamp, hand_points = new_result
                 last_result_timestamp = timestamp
 
-                print(
-                    "MediaPipe result:",
-                    timestamp,
-                    "Visible hands:",
-                    int(np.isfinite(hand_points).all(axis=-1).any(axis=-1).sum()),
-                )
-
                 if recording and timestamp > recording_start_timestamp:
                     captured_frames.append(hand_points)
 
-            # Keep your existing skeleton drawing.
             display = landmark.draw(frame.image)
 
             if recording:
@@ -117,8 +107,6 @@ def main() -> None:
             cv.imshow("ASL Recognition", display)
 
             key = cv.waitKey(1) & 0xFF
-            if key != 255:
-                print("Key pressed:", key)
 
             if key == ord("q"):
                 break

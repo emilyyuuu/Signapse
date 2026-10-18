@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CAMERA_URL } from "./useSigning";
+import { CAMERA_URL } from "../../lib/api";
 
 // Recording new sign examples in the local camera program (apps/pointing/recorder.py).
 // Only hand points are saved, on this computer.
