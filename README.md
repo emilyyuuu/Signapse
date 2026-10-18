@@ -2,26 +2,163 @@
 
 **Real-time sign-to-clinical translation for Deaf and hard-of-hearing patients.**
 
-Signapse translates between a Deaf patient and medical staff in real time. In sign language the face is part of the grammar: raised brows turn a statement into a yes/no question, a head shake turns it into a denial. Signapse reads eyebrows, squint and head movement along with the hands, so a question stays a question and a denial stays a denial.
+Signapse lets a Deaf patient sign to a camera and have a doctor hear a clear clinical sentence. It also reads the patient's face, because in ASL the face is part of the grammar. The doctor's reply comes back as plain text with icons. Video never leaves the patient's laptop.
 
-Signs become a clean clinical sentence that is spoken to the doctor and filed as chart data. The doctor's reply goes back to the patient as plain-language text and icons. Video never leaves the device. The whole conversation is logged in Tiger Data (Postgres + TimescaleDB) for review at charting time.
+## Contents
 
-This is a hackathon project (about 36 hours). The full plan, a clickable prototype, the schema, the task list and the demo script live in the project artifact: https://claude.ai/artifact/4wQskwmT2C7UvuXct6xFtE
+- [Inspiration](#inspiration)
+- [What it does](#what-it-does)
+- [How it works](#how-it-works)
+- [How we built it](#how-we-built-it)
+- [Quick start](#quick-start)
+- [Challenges we ran into](#challenges-we-ran-into)
+- [Accomplishments we're proud of](#accomplishments-were-proud-of)
+- [What we learned](#what-we-learned)
+- [What's next](#whats-next)
+- [Technical deep dive](#technical-deep-dive)
+- [Privacy and safety](#privacy-and-safety)
+- [Team](#team)
+
+## Inspiration
+
+In a clinic, Deaf patients often wait for an interpreter, write notes back and forth, or rely on a family member. Each of these is slow and can be wrong. In an emergency, it's dangerous.
+
+Most sign-to-text tools only look at the hands, and that misses a lot. In ASL, raised eyebrows turn "you have pain" into "do you have pain?", and a head shake turns "chest pain" into "no chest pain". A translator that ignores the face can report the opposite of what the patient meant. Signapse treats the face as part of the sentence.
+
+## What it does
+
+**For the patient** (laptop with a webcam):
+- **Sign how you feel.** The camera reads clinical signs (pain, headache, fever, nausea, chest, stomach, jaw, face, heart attack) and shows each word as it is recognised. Large buttons are there as a fallback.
+- **Facial grammar.** Raised brows mark a question, a head shake marks a negation, and a furrow or squint marks emphasis. These change the meaning of the sentence and the tone of the spoken voice.
+- **Point to where it hurts.** The patient can point at or touch their own body, and the camera maps it to a body-map zone (left/right chest, four abdominal quadrants, jaw, etc.). They can also just tap the body map.
+- **Check before sending.** The patient sees "You said: I have left chest pain. It is 7 out of 10." and chooses **Send to the doctor** or **Start again**. Urgent messages send themselves after 10 s if the patient doesn't answer.
+
+**For the clinician:**
+- A clinical sentence ("The patient reports pain at the left side of the chest and rates the pain 7 out of 10."), spoken aloud in a tone that follows the patient's face, with a chime when it's urgent.
+- A live pain map and pain trend.
+- Any meaning that depends on a facial cue is marked **Confirm meaning** before it can be charted.
+- Typed replies go back to the patient in plain language. A reply ending in `?` gives the patient big YES/NO buttons.
+
+**After the visit:**
+- **Review** replays the encounter from Tiger Data, lets the clinician verify flagged lines, and drafts a chart note that labels unverified lines.
+
+**Remote visits:**
+- **Call mode** is an end-to-end encrypted WebRTC video call. The patient's signs appear as captions on the doctor's screen, and the doctor's speech is captioned live for the patient.
+
+**Teaching new signs:**
+- **/record** lets staff record a few examples of a new sign and rebuild the model from the browser, without writing any code.
 
 ## How it works
 
-1. **Sign recognition (on device).** MediaPipe `HandLandmarker` and `FaceLandmarker` run in a local Python process on the patient laptop (`apps/sign_recognition`, next to `apps/facial_grammar`). Hand landmarks are normalized (subtract the wrist position, divide by hand size) and split into segments by hand speed. Each segment is matched against recorded templates with DTW + k-NN. The vocabulary is about 30 isolated clinical ASL signs, about 20 takes each, stored as landmark JSON only, never video.
-2. **Facial grammar engine (on device).** This is the core feature. A neutral-face calibration stores a baseline for each patient. Over each clause window, `browInnerUp`/`browOuterUp`/`browDown`/`eyeSquint` blendshapes and head yaw/pitch are mapped to one of four flags: `statement`, `question` (brows raised for more than ~300 ms), `negation` (2 or more yaw reversals) or `intensified` (furrow or squint). The rules are plain Python (`apps/facial_grammar/`), not a model.
-3. **Clinical sentence processor.** A phrase table keyed by complaint fills a sentence template for each flag. An optional Claude Haiku rewrite works on redacted text only and falls back to the template after 1 s. Output is spoken with `speechSynthesis` and saved as structured fields. The voice's tone follows the face (`packages/shared/src/tone.ts`): raised eyebrows (question) raise the pitch, a head shake (negation) is lower and slower, furrowed brows (emphasis) are slower and louder, and strong cues push further. Only the sound changes, never the words. The "please confirm" reminder is always in a plain voice. Only on-device voices are used, so the text isn't sent to an online voice service. Any meaning that depends on a facial marker is flagged for the clinician to confirm.
-4. **Clinician reply.** Typed replies (in-browser Whisper dictation is a stretch goal) are rewritten in plain language and matched to icons. A reply ending in `?` shows large YES/NO buttons, and the patient's tap is logged.
-5. **Body map.** SVG front, back and face views and severity 0–10. The zones are specific where it matters clinically: left/right chest, four abdominal quadrants plus the navel, left/right upper and lower back, and the eyes, nose, mouth, cheeks, jaw, ears and forehead. Each change becomes a `pain_readings` row. The patient can also **point at or touch their own body** (`apps/pointing`, its own package next to facial grammar). An index-finger point counts after 0.2 s. A touch or tap with any hand shape counts after 0.7 s, but only when the hand is at body depth, not out in front in signing space. A touch is a suggestion: it highlights the zone (dashed) and opens the pain picker, and becomes a record only when the patient rates it. Only points join a clause as `POINT-<ZONE>`. Only the zone id is sent (`POST /point`). Both screens highlight it, the patient screen opens the pain level for it, and inside a clause it becomes a `POINT-<ZONE>` sign, so `PAIN POINT-CHEST` reads as "The patient reports chest pain."
-6. **Chart review (Tiger Data).** Two hypertables (`utterances`, `pain_readings`) partitioned by time and segmented by encounter, plus a continuous aggregate for the pain trend. The review screen replays an encounter, lets the clinician verify flagged lines and drafts a chart note with unverified lines labelled.
+```
+ Patient laptop (on device)                                 Cloud
+┌─────────────────────────────────────────┐   text only   ┌──────────────────────┐
+│ Webcam → MediaPipe hands / face / pose  │──────────────▶│ Node API (Hono + WS) │
+│   ├─ sign recognition (DTW + k-NN)      │  sign labels, │  ├─ Gemini rewrite   │
+│   ├─ facial grammar rules               │  marker       │  │   (template       │
+│   └─ pointing → body-map zone           │  scores,      │  │    fallback)      │
+│                                         │  zone ids     │  ├─ patient drafts   │
+│ Patient web page (React)  ◀─────────────┼───────────────│  └─ Tiger Data       │
+└─────────────────────────────────────────┘   WebSocket   │     (Postgres +      │
+                                                          │      TimescaleDB)    │
+ Clinician web page (React) ◀─────────────────────────────┤                      │
+                                                          └──────────────────────┘
+```
 
-## Stack
+1. **Sign recognition (on device).** MediaPipe `HandLandmarker` and `FaceLandmarker` run in one local Python process on the patient laptop (`apps/pointing`, using the recorded-sign model from `apps/recognition-python`). Hand landmarks are normalized (subtract the wrist position, divide by hand size), and each sign (hands up, sign, hands down) is matched against recorded templates with DTW + k-NN. The vocabulary is a small set of isolated clinical ASL signs (chest, face, fever, headache, heart attack, jaw, nausea, pain, stomach). The model stores hand points only, never video. See [The patient's path](#the-patients-path-sign-model--face--gemini).
+2. **Facial grammar engine (on device).** This is the core feature. A neutral-face baseline is stored for each patient. Over each clause window, `browInnerUp`/`browOuterUp`/`browDown`/`eyeSquint` blendshapes and head yaw/pitch are mapped to one of four flags: `statement`, `question` (brows raised for more than ~300 ms), `negation` (2 or more yaw reversals) or `intensified` (furrow or squint). The rules are plain Python (`apps/facial_grammar/`), not a model, so they can be explained and tuned.
+3. **Clinical sentence processor.** A phrase table keyed by complaint fills a sentence template for each flag (`packages/shared/src/language.ts`). An optional Gemini rewrite (`apps/api/src/language/`) gets sign labels and marker scores only, never names. If Gemini is slow or drops a symptom, place or rating, the template is used instead. The sentence is spoken with `speechSynthesis` and saved as structured fields. The voice's tone follows the face (`packages/shared/src/tone.ts`): a question (raised eyebrows) has a higher pitch, a negation (head shake) is lower and slower, emphasis (furrowed brows) is slower and louder, and strong cues push further. Only the sound changes, never the words. The "please confirm" reminder is always read in a plain voice. Only on-device voices are used.
+4. **Clinician reply.** Typed replies are rewritten in plain language and matched to icons. In call mode, the doctor's speech is captioned live. A reply ending in `?` shows large YES/NO buttons, and the patient's tap is logged.
+5. **Body map.** SVG front, back and face views with severity 0–10. Zones are specific where it matters clinically: left/right chest, four abdominal quadrants plus the navel, left/right upper and lower back, and the eyes, nose, mouth, cheeks, jaw, ears and forehead. Each change becomes a `pain_readings` row. The patient can also **point at or touch their own body** (`apps/pointing`). An index-finger point counts after 0.2 s. A touch with any hand shape counts after 0.7 s, but only when the hand is at body depth, not out in front in signing space. A touch only highlights the zone (dashed) and opens the pain picker; it is recorded once the patient rates it. Inside a clause, a point becomes a `POINT-<ZONE>` sign, so `PAIN POINT-CHEST` reads as "The patient reports chest pain."
+6. **Chart review (Tiger Data).** Hypertables (`utterances`, `pain_readings`, `patient_actions`) are partitioned by time and segmented by encounter, plus a continuous aggregate for the pain trend. The review screen replays an encounter, lets the clinician verify flagged lines, and drafts a chart note with unverified lines labelled.
 
-**Vision** (sign recognition + facial grammar) is Python with MediaPipe and OpenCV, in one camera loop on the patient laptop. Only text events leave that process.
+## How we built it
 
-**Web:** React + Vite + TypeScript (or Next.js), with routes for **patient**, **clinician** and **review**. A Node API (Hono or Fastify, `pg`, one WebSocket room per encounter) validates and relays events. Tiger Cloud is set up with the Tiger CLI or Tiger MCP. The frontend is deployed on Vercel/Netlify and the API on Render/Fly (HTTPS is required for the camera).
+| Layer | Tech |
+| --- | --- |
+| Vision (on device) | Python, MediaPipe (Hand, Face and Pose Landmarker), OpenCV, NumPy |
+| Sign recognition | DTW + k-NN over normalized hand landmarks, trained on our own recordings |
+| Facial grammar | Rule engine over MediaPipe blendshapes and head pose |
+| Frontend | React 18, Vite, TypeScript, Web Speech API (`speechSynthesis`, `SpeechRecognition`), WebRTC |
+| API | Node, Hono, WebSockets (`ws`), Zod validation, `pg` |
+| Language | Google Gemini, with a rule-based template fallback |
+| Database | Tiger Data / Tiger Cloud (Postgres + TimescaleDB hypertables and continuous aggregates) |
+| Deploy | Cloudflare (Wrangler, static assets from `apps/web/dist`) for the frontend, Render for the API |
+
+Vision (sign recognition, facial grammar and pointing) runs in one camera loop on the patient laptop, and only text events leave that process. The web app has routes for **patient**, **clinician**, **review**, **call**, **wizard** and **record**. The Node API validates and relays events, with one WebSocket room per encounter. HTTPS is required for the camera outside localhost.
+
+## Quick start
+
+**Requirements:** Node 20+, Python 3.10–3.12, a webcam. Chrome or Edge is recommended (speech and camera APIs).
+
+```bash
+# 1. Install JS dependencies (npm workspaces)
+npm install
+
+# 2. Configure
+cp .env.example .env     # DATABASE_URL and GEMINI_API_KEY are optional, see below
+
+# 3. (Optional) set up Tiger Data: applies db/schema.sql and the seed data
+npm run db:setup -w @signapse/api
+
+# 4. Run the API and the web app (two terminals)
+npm run dev:api          # http://localhost:8787
+npm run dev:web          # http://localhost:5173
+
+# 5. Run the camera program on the patient laptop
+cd apps/pointing && python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
+scripts/fetch_models.sh
+.venv/bin/python -m pointing.lab --no-window
+```
+
+- With no `DATABASE_URL`, the API uses an in-memory store, so the demo works offline.
+- With no `GEMINI_API_KEY`, clinical sentences come from the rule-based templates.
+- Set `LOCAL_CAMERA=true` in `.env` and the patient page starts the camera program by itself during local development.
+- **No camera?** Open `/wizard` to act as the patient through the same pipeline (see [Wizard mode](#wizard-mode)).
+
+**Try the demo:** open `/` and start a visit. Put the **patient** screen on the laptop with the webcam and the **clinician** screen on a second screen or device. Sign `PAIN`, point at your chest, rate it 7, and press **Send to the doctor**. Then sign it again with raised eyebrows and see the question on the clinician side.
+
+**Tests:**
+
+```bash
+cd apps/facial_grammar && .venv/bin/pytest -s   # rules + per-flag accuracy on recorded clips
+cd apps/pointing && .venv/bin/pytest            # pointing, head gestures, signs, recorder
+npm test -w @signapse/shared                    # sentence templates, signs, voice tone
+```
+
+## Challenges we ran into
+
+- **Telling signs apart from pointing.** Many ASL signs touch the body (MY, PLEASE, SORRY, ME). We added several filters to `tracker.py`: the hand has to arrive and then hold still, touches need 0.7 s, points take priority over touches, and a point at mid-chest needs a longer hold unless PAIN was just signed.
+- **Little training data.** There are few public datasets of clinical ASL signs. We trained a CNN on a public dataset (`medical_asl_cnn_v1`, `train_neural.py`), but the live system uses DTW + k-NN over our own recordings. It works with a handful of examples per sign, and new signs can be taught from the browser.
+- **Faces differ from person to person.** A fixed eyebrow threshold flags some people's resting face as a question. The camera now learns each patient's resting face while they aren't signing, so there's no calibration step.
+- **LLMs that drop facts.** Gemini sometimes left out the location or rating. Its output is checked against the signs, and the template is used if anything is missing, so a symptom is never lost.
+- **Privacy in call mode.** Showing the patient's video to the doctor without sending it through our server meant using peer-to-peer WebRTC, an admit step, and safety codes built from the DTLS fingerprints.
+
+## Accomplishments we're proud of
+
+- Facial grammar that changes the meaning, not just a label: a question stays a question and a denial stays a denial, all the way to the chart.
+- No video frames leave the device: only sign labels, marker scores and zone ids do, and the API rejects anything else.
+- The patient confirms what they said before it reaches the doctor, and anything that depends on a facial cue needs clinician confirmation before charting.
+- Staff can teach the system a new sign in a few minutes from the browser.
+- A full loop in one weekend: sign → sentence → speech → chart review, plus encrypted remote calls.
+
+## What we learned
+
+- The face carries a lot of ASL grammar, and simple, explainable rules on top of MediaPipe blendshapes go a long way.
+- In a clinical setting, a deterministic fallback and human confirmation matter more than a more fluent sentence.
+- TimescaleDB hypertables and continuous aggregates suit a conversation log: time-ordered, grouped by encounter, with trends for free.
+
+## What's next
+
+- A larger vocabulary and continuous (not isolated) sign recognition, built with Deaf signers and interpreters.
+- Other sign languages (LSQ, BSL).
+- Speech recognition on the device for the clinician, so no audio leaves the room.
+- Integration with EHR systems (FHIR) for chart notes.
+- A clinical pilot and work toward HIPAA/PHIPA compliance.
+
+---
+
+# Technical deep dive
 
 ## Repo layout
 
@@ -38,27 +175,27 @@ apps/facial_grammar/  Python package `facial_grammar`, runs on the patient lapto
 apps/pointing/        Python package `pointing`: point at your own body -> body-map zone id
   capture.py          webcam + MediaPipe Pose + Hand Landmarker loop
   features.py         pose + hand landmarks -> BodyFrame
-  handshape.py        is the index finger pointing, and with which arm
-  handshape.py        point vs touch, contact point, depth from apparent hand size
+  handshape.py        point vs touch, which arm, contact point, depth from apparent hand size
   zones.py            contact point -> zone id (ids from packages/shared/src/bodyZones.ts)
   tracker.py          one PointingEvent per steady hold, with filters against signs (below)
   datatypes.py        BodyFrame, PointingEvent, Thresholds (tune here)
   api_client.py       posts /point and /clauses (text only) on a background thread
-  lab.py              live pointing lab
+  signs.py            signing sessions: recorded-sign model (recognition-python) -> sign labels
+  face.py             facial grammar during the signs (facial_grammar rules)
+  head.py             nod / shake from the pose landmarks
+  recorder.py         record new sign examples and rebuild the model (/record page)
+  preview.py          local camera preview + signing/recording controls on 127.0.0.1:8765
+  launcher.py         camera helper that starts at login, so a hosted page can start the camera
+  lab.py              the camera program: pointing, signing, face, preview
   scripts/            fetch_models.sh downloads models/ (gitignored)
-apps/sign_recognition/  Python package `sign_recognition`: hand landmarks -> sign labels (DTW + k-NN)
-  capture.py          webcam source + MediaPipe Hand Landmarker
-  datatypes.py        VideoFrame, FrameSource
-  normalize.py        wrist-relative, hand-size-scaled landmarks (to do)
-  segment.py          split by hand speed into sign segments (to do)
-  dtw.py, knn.py      match segments against data/signs templates (to do)
-  pipeline.py         camera -> SignEvent (to do)
-  explore.py          template quality checks (pandas, optional `[explore]`)
-  lab.py              live preview with the hand skeleton
-  scripts/            fetch_models.sh downloads models/ (gitignored)
+apps/recognition-python/  recorded-sign model (DTW + k-NN) used by apps/pointing/signs.py
+  app/models/recorded_asl_v1/  the model the camera program loads (commit it after a rebuild)
+  app/recognition/    normalize, DTW, k-NN, RecognitionPipeline
+  app/scripts/        build_model.py (used by Rebuild), plus training/comparison experiments
+  app/main.py         standalone webcam demo (SPACE records a sign, q quits)
 apps/web/             React + Vite frontend
   src/routes/         patient, clinician, review screens
-  src/language/       phrase table, sentence templates, plain-language replies
+  src/language/       speech out (tone), dictation in, urgent chime
   src/components/     shared UI (bodymap/, ...)
   src/wizard/         wizard-mode operator panel
   src/lib/            event queue, API/WebSocket client
@@ -66,11 +203,9 @@ apps/api/             Node API
   src/routes/         /events, encounters, verify, chart note
   src/ws/             one WebSocket room per encounter
   src/db/             pg client and queries
-packages/shared/      shared TypeScript contracts (types.ts)
-db/schema.sql         Tiger Data schema; db/seed/ for sample encounters
-data/signs/           recorded sign templates (landmark JSON only, never video)
+packages/shared/      shared TypeScript contracts (types.ts), phrase table and sentences (language.ts), body zones, voice tone
+db/schema.sql         Tiger Data schema; db/migrations/ upgrade older databases, db/seed/ for sample encounters
 data/grammar/clips/   labelled facial grammar clips (feature JSON only)
-tools/recorder/       recorder tool for labelled landmark takes
 ```
 
 ## Running facial grammar
@@ -84,15 +219,6 @@ scripts/fetch_models.sh
 
 Grammar thresholds are in `apps/facial_grammar/datatypes.py`. Tune them against recorded clips.
 
-## Running sign recognition
-
-```
-cd apps/sign_recognition && python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
-scripts/fetch_models.sh
-.venv/bin/pytest
-.venv/bin/python -m sign_recognition.lab   # hand skeleton preview, q quit
-```
-
 ## Running pointing
 
 ```
@@ -104,6 +230,15 @@ npm run dev:api                          # in another terminal; the screens too:
 .venv/bin/python -m pointing.lab --dry-run   # print events instead of posting
 .venv/bin/python -m pointing.lab --no-window   # no pop-up: the camera shows on the patient web page
 ```
+
+When the web app is hosted, the API can't start a program on the patient laptop, so a small camera helper does it instead. Install it once on that laptop (it starts at login and listens on `127.0.0.1:8764`, for the listed pages only); the patient page then turns the camera on and off by itself, and the camera stops when no Signapse page has checked on it for a minute:
+
+```
+.venv/bin/python -m pointing.launcher install --api https://<your-api> --origin https://<your-web-app>
+.venv/bin/python -m pointing.launcher uninstall
+```
+
+In local development the API can start the camera itself instead (`LOCAL_CAMERA=true`).
 
 The lab also serves its annotated camera on `http://127.0.0.1:8765/video` (this computer only, `--preview-port`, 0 turns it off); the patient screen shows it in a **Camera** panel, so no separate window is needed (`--no-window`). Only zone ids ever go to the API. `SIGNAPSE_API_URL` (default `http://localhost:8787`) and `SIGNAPSE_ENCOUNTER` (default the demo encounter) pick where events go. Pointing thresholds are `Thresholds` in `apps/pointing/datatypes.py`. The lab sends its clauses as statements; when sign recognition assembles real clauses it adds `PointingEvent.to_sign_event()` to the signs and takes the flag from facial grammar. Pose and hands run on the un-mirrored frame, so `lshoulder` is the patient's own left. Back zones come from the `BACK` sign (`BACK POINT-LLQ` = left lower back), since a hand behind the body can't be seen. Face parts use the pose model's eye, nose and mouth points, kept from the last 1.5 s when the hand covers the face. On the sternum the chest resolves to `chest` (both halves) rather than guessing a side; `chest`, `abdomen`, `upperback` and `lowerback` are group zones that light every part.
 
@@ -128,7 +263,7 @@ The patient screen asks one thing at a time:
 The clinician screen then gets a sentence written by Gemini from the sign labels and the face ("The patient reports pain at the left side of the chest and rates the pain 7 out of 10."). It is spoken in a tone that follows the face, the place and rating go on the pain map, and anything that depends on a facial marker keeps the **Confirm meaning** flag. Rating central pain 8 or more counts as urgent, like chest pain.
 
 How it is wired (all in the one camera program the page starts, `apps/pointing`):
-- `signs.py` loads `apps/recognition-python/app/models/recorded_asl_v1` (DTW + kNN; chest, face, fever, headache, jaw, nausea, pain, stomach) through that app's own `RecognitionPipeline`. It flips the hand points to match the mirrored recordings, tries both hands so left-handed signers match too, and drops matches further than 2.0. Retrain with `apps/recognition-python/app/scripts/build_model.py` and the camera program picks it up on its next start.
+- `signs.py` loads `apps/recognition-python/app/models/recorded_asl_v1` (DTW + kNN; chest, face, fever, headache, heartattack, jaw, nausea, pain, stomach) through that app's own `RecognitionPipeline`. It flips the hand points to match the mirrored recordings, tries both hands so left-handed signers match too, and drops matches further than 2.0. Retrain with `apps/recognition-python/app/scripts/build_model.py` and the camera program picks it up on its next start.
 - `face.py` runs `apps/facial_grammar`'s rules on the face during the signs. The resting face is learned while the patient isn't signing, so there is no calibration step. Its flag and `to_nmm()` scores go with the signs.
 - The page controls signing with `POST http://127.0.0.1:8765/sign` (`start` / `done` / `cancel`), accepted only from the web page's origin (`CORS_ORIGIN`).
 - Only sign labels and marker scores leave the program: frames, hand points and face points never do.
@@ -137,7 +272,7 @@ How it is wired (all in the one camera program the page starts, `apps/pointing`)
 
 Setup once on each computer: `apps/pointing/scripts/fetch_models.sh` (in Git Bash on Windows) now also downloads `face_landmarker.task`. Without it, signs still work and are sent as plain statements.
 
-## Shared contracts (agree these first)
+## Shared contracts
 
 - **Sign event:** label, confidence, start/end time. Wizard mode emits the same shape.
 - **Clause:** the signs in one clause plus its face/head frames, which go in to produce a grammar flag.
@@ -200,12 +335,20 @@ The server still sees and stores the finished sentences, as it does for visits, 
 
 The sign-reading program usually holds the webcam, so the patient's call video is its local preview drawn onto a canvas. Without the program, **Video only** uses the webcam directly. Calls between networks that block direct connections need a TURN relay (`VITE_TURN_URL`, `VITE_TURN_USER`, `VITE_TURN_PASS`). Calls need HTTPS outside localhost.
 
-## Non-negotiables
+## Privacy and safety
 
-- **Privacy:** camera frames and landmarks are processed in the local vision process and discarded. The API rejects anything that isn't text or numbers. The only personal data is the name typed at check-in; it is never sent to Gemini. The UI shows a live "video frames sent: 0" counter. In call mode the patient's video goes only to the doctor, peer to peer and encrypted (see Call mode). Chrome's `SpeechRecognition` sends audio to the cloud, so don't use it outside a clearly labelled stand-in.
-- **Safety:** a wrong meaning is a clinical risk, so lines that depend on a marker need clinician confirmation before charting. Signapse does not replace qualified interpreters and is not HIPAA/PHIPA compliant.
-- **Demo resilience:** wizard mode (an operator triggers signs through the same pipeline) must work end to end before hour 8. Event writes are queued and must never block the UI.
+- **Privacy:** camera frames and landmarks are processed in the local vision process and then discarded. The API rejects anything that isn't text or numbers. The only personal data is the name typed at check-in, and it is never sent to Gemini. In call mode, the patient's video goes only to the doctor, peer to peer and encrypted (see [Call mode](#call-mode)).
+- **Safety:** a wrong meaning is a clinical risk, so lines that depend on a facial marker need clinician confirmation before charting. The patient confirms every message before it is sent, except urgent ones they don't answer.
+- **Demo resilience:** wizard mode drives the same pipeline without a camera, and event writes are queued so they never block the UI.
 
-## Out of scope
+**Disclaimer:** Signapse is a hackathon prototype. It does not replace qualified medical interpreters and is not HIPAA/PHIPA compliant.
+
+### Out of scope
 
 Continuous or open-vocabulary sign recognition, replacing interpreters, and production compliance.
+
+## Team
+
+- Emily Yu ([@emilyyuuu](https://github.com/emilyyuuu))
+- Noah Sun ([@LegendaryArk](https://github.com/LegendaryArk))
+- Kian Davoudi ([@kian-git07](https://github.com/kian-git07))

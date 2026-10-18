@@ -1,26 +1,26 @@
 node_modules/
 dist/
+.wrangler/
 .env
 .env.*
 !.env.example
 *.log
 .DS_Store
-# Raw recordings must never be committed; only landmark JSON goes in data/signs
+
+# Raw recordings must never be committed; only landmarks and features are
 *.webm
 *.mp4
 data/raw
 data/processed
 /apps/recognition-python/app/data/
-data/raw
-data/processed
-/apps/recognition-python/app/data/
 
+# Python
 .venv/
 __pycache__/
 *.egg-info/
 .pytest_cache/
+
+# Downloaded MediaPipe models (scripts/fetch_models.sh) and local sign recordings
 apps/facial_grammar/models/
 apps/pointing/models/
-apps/sign_recognition/models/
 apps/recognition-python/recorder/
-apps/sign_recognition/models/
